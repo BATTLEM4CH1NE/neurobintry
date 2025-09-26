@@ -185,13 +185,17 @@
         // Set Firebase debug log level
         setLogLevel('Debug');
         
-        // --- HARDCODED FALLBACK CONFIGURATION (Simplified essentials) ---
-        // This is used if the environment fails to provide __firebase_config
+        // --- HARDCODED FALLBACK CONFIGURATION (Full configuration) ---
+        // Used if the environment fails to provide __firebase_config
         const USER_FIREBASE_CONFIG_FALLBACK = {
             apiKey: "AIzaSyAsyIFdxENdIbDCvvF1RJH7v_ea1mmBcsw",
             authDomain: "neurobin-60a06.firebaseapp.com",
+            databaseURL: "https://neurobin-60a06-default-rtdb.asia-southeast1.firebasedatabase.app",
             projectId: "neurobin-60a06",
+            storageBucket: "neurobin-60a06.firebasestorage.app",
+            messagingSenderId: "284735902537",
             appId: "1:284735902537:web:fb443bf25e632f61ad0098",
+            measurementId: "G-1BXGE1TNDT"
         };
 
         // --- Global Variables ---
@@ -257,8 +261,10 @@
         
         /** Initializes Firebase and authenticates the user */
         async function initFirebaseAndAuth() {
-            if (!firebaseConfig || !firebaseConfig.apiKey || !firebaseConfig.authDomain) {
-                showError("Firebase configuration is severely damaged (missing API Key or Auth Domain). Cannot initialize the app.");
+            // CRITICAL CHECK: Ensure minimum required fields for Auth are present
+            if (!firebaseConfig || !firebaseConfig.apiKey || !firebaseConfig.authDomain || !firebaseConfig.projectId) {
+                console.error("Critical Firebase Configuration Missing:", firebaseConfig);
+                showError("Firebase setup failed: The configuration object is incomplete. Please ensure API Key, Auth Domain, and Project ID are included.");
                 return;
             }
 
@@ -266,7 +272,7 @@
                 // Initialize the app instance
                 app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
-                auth = getAuth(app); // Error should be resolved here if config is right
+                auth = getAuth(app); 
                 
                 // Sign in with the provided token or anonymously
                 const authPromise = initialAuthToken 
@@ -294,7 +300,7 @@
                 console.error("Firebase Initialization Error:", error);
                 // Specifically targeting the auth error message
                 if (error.code === 'auth/configuration-not-found') {
-                    showError("Firebase setup failed: The Authentication configuration is incorrect or incomplete. Please ensure the API Key and Auth Domain are valid for your project.");
+                    showError("Firebase setup failed: The Authentication configuration is missing required security fields. The full config has been restored. If this persists, please ensure Anonymous Auth is enabled in your Firebase project.");
                 } else {
                     showError(`Firebase setup failed: ${error.message}.`);
                 }
