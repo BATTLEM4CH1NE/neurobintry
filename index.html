@@ -164,14 +164,14 @@
     </div>
 
     <script type="module">
-        // --- Firebase Imports ---
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        // --- Firebase Imports (Updated to v12.3.0) ---
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-app.js";
         import { 
             getAuth, 
             signInAnonymously, 
             signInWithCustomToken, 
             onAuthStateChanged 
-        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-auth.js";
         import { 
             getFirestore, 
             addDoc, 
@@ -179,14 +179,13 @@
             collection, 
             query, 
             serverTimestamp 
-        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"; 
-        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-firestore.js"; 
+        import { setLogLevel } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-app.js";
 
         // Set Firebase debug log level
         setLogLevel('Debug');
         
-        // --- HARDCODED FALLBACK CONFIGURATION (Full configuration) ---
-        // Used if the environment fails to provide __firebase_config
+        // --- HARDCODED FALLBACK CONFIGURATION (Using user's provided, updated configuration) ---
         const USER_FIREBASE_CONFIG_FALLBACK = {
             apiKey: "AIzaSyAsyIFdxENdIbDCvvF1RJH7v_ea1mmBcsw",
             authDomain: "neurobin-60a06.firebaseapp.com",
@@ -194,8 +193,8 @@
             projectId: "neurobin-60a06",
             storageBucket: "neurobin-60a06.firebasestorage.app",
             messagingSenderId: "284735902537",
-            appId: "1:284735902537:web:fb443bf25e632f61ad0098",
-            measurementId: "G-1BXGE1TNDT"
+            appId: "1:284735902537:web:a9ba65110cacda5cad0098", 
+            measurementId: "G-T9F21LK4ZE" 
         };
 
         // --- Global Variables ---
@@ -292,7 +291,12 @@
                     } else {
                         userId = 'unauthenticated';
                         document.getElementById('user-id-display').textContent = userId;
-                        showError("Failed to authenticate user. History will not be saved.");
+                        // Only show error if no token was provided, otherwise it's just anonymous sign-in
+                        if (initialAuthToken) {
+                             showError("Failed to authenticate user with custom token. History will not be saved correctly.");
+                        } else {
+                            console.log("Successfully signed in anonymously.");
+                        }
                     }
                     setupEventListeners();
                 });
@@ -300,7 +304,7 @@
                 console.error("Firebase Initialization Error:", error);
                 // Specifically targeting the auth error message
                 if (error.code === 'auth/configuration-not-found') {
-                    showError("Firebase setup failed: The Authentication configuration is missing required security fields. The full config has been restored. If this persists, please ensure Anonymous Auth is enabled in your Firebase project.");
+                    showError("Firebase setup failed: The Authentication configuration is missing required security fields. This is usually resolved by ensuring the full config is correct and Anonymous Auth is enabled.");
                 } else {
                     showError(`Firebase setup failed: ${error.message}.`);
                 }
