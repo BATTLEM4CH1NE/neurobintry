@@ -229,6 +229,17 @@
         let auth;
         let userId = null;
         
+        // --- Firebase Configuration Setup ---
+        let firebaseConfig = {};
+        const rawConfig = typeof __firebase_config !== 'undefined' ? __firebase_config : '{}';
+        
+        try {
+            // Safely parse the Firebase config from the environment variable
+            firebaseConfig = JSON.parse(rawConfig);
+        } catch (e) {
+            console.error("Error parsing __firebase_config:", e);
+        }
+
         // Function to sanitize path segments for Realtime Database (removes invalid characters)
         const sanitizePathSegment = (str) => {
             // Realtime DB forbids ., #, $, [, ]
@@ -239,9 +250,8 @@
         const rawAppId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         const appId = sanitizePathSegment(rawAppId); 
         
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
 
-        // --- DOM Elements ---
+        // --- DOM Elements (omitted for brevity, assume they are still here) ---
         const dropZone = document.getElementById('drop-zone');
         const fileInput = document.getElementById('file-input');
         const uploadSection = document.getElementById('upload-section');
@@ -296,9 +306,10 @@
         // --- Realtime Database Functions (Replaces Firestore) ---
 
         async function initFirebaseAndAuth() {
-            if (!firebaseConfig || !Object.keys(firebaseConfig).length) {
-                console.error("Firebase config is missing. History feature will be disabled.");
-                historyLoading.textContent = "History is unavailable: Firebase not configured by the environment.";
+            // Check if firebaseConfig is truly empty
+            if (Object.keys(firebaseConfig).length === 0) {
+                console.error("Firebase config is empty. History feature will be disabled.");
+                historyLoading.textContent = "History is unavailable: Missing Firebase configuration details.";
                 return;
             }
             
@@ -648,8 +659,8 @@
             }
             showLoading(true);
 
-            // API key provided by the user
-            const apiKey = "AIzaSyAD4OtSfd38C_wzG6bbJ_z7GOi3SE6jw8A"; 
+            // IMPORTANT: The API key must be an empty string for the runtime to inject it.
+            const apiKey = ""; 
             
             const model = "gemini-2.5-flash-preview-05-20";
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
