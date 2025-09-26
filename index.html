@@ -105,7 +105,7 @@
                         <p class="text-gray-500 mt-2">Upload a photo or use your camera to start.</p>
                     </header>
 
-                    <!-- NEW: Classification List on Home Screen -->
+                    <!-- Classification List on Home Screen -->
                     <div class="mb-8 p-4 bg-gray-50 rounded-xl shadow-inner">
                         <p class="text-center text-sm font-semibold text-gray-700 mb-3 border-b pb-2">6 Waste Categories</p>
                         <div class="grid grid-cols-2 gap-y-1 gap-x-4">
@@ -141,7 +141,7 @@
                             </div>
                         </div>
                     </div>
-                    <!-- END NEW: Classification List -->
+                    <!-- END Classification List -->
 
                     <div id="drop-zone" class="drop-zone w-full p-8 text-center cursor-pointer bg-gray-50 hover:bg-gray-100 hidden md:block">
                         <input type="file" id="file-input" class="hidden" accept="image/*">
@@ -473,8 +473,8 @@
             }
             showLoading(true);
 
-            // API key is deliberately left blank for the Canvas environment
-            const apiKey = ""; 
+            // API key provided by the user for the Gemini API call
+            const apiKey = "AIzaSyAD4OtSfd38C_wzG6bbJ_z7GOi3SE6jw8A"; 
             
             const model = "gemini-2.5-flash-preview-05-20";
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
