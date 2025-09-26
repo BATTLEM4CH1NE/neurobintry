@@ -4,577 +4,324 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NeuroBin - Mobile Waste Classifier</title>
+    <!-- Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body {
             font-family: 'Inter', sans-serif;
             -webkit-tap-highlight-color: transparent;
+            background-color: #f8f9fa; /* Light background for the overall app */
         }
         .app-container {
-            height: 100vh;
+            min-height: 100vh;
             display: flex;
             flex-direction: column;
         }
         .main-content {
-            flex-grow = 1;
+            flex-grow: 1; /* Fix: Corrected CSS syntax */
             display: flex;
             align-items: center;
             justify-content: center;
             padding: 1rem;
         }
         .drop-zone {
-            border: 2px dashed #d1d5db;
+            border: 3px dashed #cbd5e1; /* slate-300 */
             transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out;
         }
         .drop-zone.drag-over {
-            background-color: #e0f2fe;
-            border-color: #38bdf8;
+            background-color: #f0f9ff; /* sky-50 */
+            border-color: #3b82f6; /* blue-500 */
         }
         .loader {
-            border: 4px solid #f3f4f6;
-            border-top: 4px solid #3b82f6;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        .fade-in {
-            animation: fadeIn 0.5s ease-out forwards;
-        }
-        #camera-feed {
-            width: 100%;
-            height: auto;
-            border-radius: 0.5rem;
-        }
-        #camera-canvas {
-            display: none;
+            border-top-color: #3b82f6;
+            border-right-color: #3b82f6;
+            border-bottom-color: transparent;
+            border-left-color: transparent;
         }
     </style>
 </head>
-<body class="bg-green-50">
-
+<body>
     <div class="app-container">
-        <!-- App Header -->
-        <header class="bg-white shadow-md">
-            <nav class="container mx-auto px-4 py-3 flex items-center">
-                <div class="flex items-center space-x-2">
-                    <svg class="w-8 h-8 text-green-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M14.25 9.75L16.5 12l-2.25 2.25m-4.5 0L7.5 12l2.25-2.25M6 20.25h12A2.25 2.25 0 0020.25 18V6A2.25 2.25 0 0018 3.75H6A2.25 2.25 0 003.75 6v12A2.25 2.25 0 006 20.25z" />
-                    </svg>
-                    <h1 class="text-xl font-bold text-gray-800">NeuroBin</h1>
-                </div>
-            </nav>
+        <header class="p-4 bg-white shadow-xl z-10 sticky top-0">
+            <h1 class="text-3xl font-extrabold text-center text-indigo-600">NeuroBin</h1>
+            <p class="text-sm text-center text-gray-500 mt-1">AI-Powered Waste Classification</p>
         </header>
 
-        <!-- Main Content Area -->
         <main class="main-content">
-            <div class="w-full max-w-lg mx-auto bg-white rounded-2xl shadow-lg p-6 md:p-8">
-                <!-- Image Upload Section -->
-                <div id="upload-section" class="fade-in">
-                    <header class="text-center mb-6">
-                        <h2 class="text-2xl md:text-3xl font-bold text-gray-800">Classify Waste</h2>
-                        <p class="text-gray-500 mt-2">Upload a photo or use your camera to start.</p>
-                    </header>
+            <div class="w-full max-w-lg mx-auto bg-white p-6 rounded-3xl shadow-[0_10px_25px_rgba(0,0,0,0.1)] space-y-6 md:p-8">
+
+                <!-- Input/Image Preview Section -->
+                <div id="input-section">
+                    <input type="file" id="file-input" accept="image/*" class="hidden">
                     
-                    <!-- New Category Legend Section -->
-                    <div id="category-legend" class="mb-6 p-4 bg-gray-50 rounded-xl border border-gray-200">
-                        <h3 class="text-lg font-semibold text-gray-700 mb-2 text-center">Waste Categories Key</h3>
-                        <div class="grid grid-cols-2 gap-2 text-sm text-gray-600">
-                            <div class="flex items-center"><span class="font-bold text-gray-800 w-5">1.</span> Biodegradable</div>
-                            <div class="flex items-center"><span class="font-bold text-gray-800 w-5">4.</span> Hazardous</div>
-                            <div class="flex items-center"><span class="font-bold text-gray-800 w-5">2.</span> Recyclable</div>
-                            <div class="flex items-center"><span class="font-bold text-gray-800 w-5">5.</span> Biomedical</div>
-                            <div class="flex items-center"><span class="font-bold text-gray-800 w-5">3.</span> Non-Recyclable</div>
-                            <div class="flex items-center"><span class="font-bold text-gray-800 w-5">6.</span> E-waste</div>
-                        </div>
-                    </div>
-                    <!-- End Category Legend Section -->
-                    
-                    <div id="drop-zone" class="drop-zone w-full p-8 text-center rounded-xl cursor-pointer bg-gray-50 hover:bg-gray-100 hidden md:block">
-                        <input type="file" id="file-input" class="hidden" accept="image/*">
-                        <div class="flex flex-col items-center">
-                             <svg class="w-12 h-12 text-gray-400 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l-3 3m3-3l3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" /></svg>
-                             <p class="text-gray-600 font-medium">Drag & drop an image here</p>
-                             <p class="text-gray-500 my-1">or</p>
-                             <p class="font-semibold text-blue-600">Click to Select File</p>
-                        </div>
-                    </div>
-                    <div class="mt-4 text-center md:mt-0">
-                        <button id="camera-btn" class="w-full bg-gray-800 text-white font-bold py-3 px-6 rounded-lg hover:bg-gray-900 transition-colors flex items-center justify-center gap-2">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                            Use Camera
+                    <!-- File Drop/Selection Zone -->
+                    <div id="drop-zone" class="drop-zone flex flex-col items-center justify-center p-8 text-center rounded-2xl cursor-pointer transition" style="min-height: 180px;">
+                        <svg class="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 014 4v2a4 4 0 01-4 4h-1"></path></svg>
+                        <p class="mt-3 text-base text-gray-600 font-medium">Drag & drop image here, or</p>
+                        <!-- FIX: Explicit Button for better UX/Accessibility -->
+                        <button id="file-select-btn" class="mt-4 px-6 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-full shadow-lg hover:bg-indigo-700 transition duration-200 transform hover:scale-[1.03] active:scale-95">
+                            Select File
                         </button>
                     </div>
+
+                    <button id="camera-btn" class="w-full mt-4 flex items-center justify-center space-x-2 px-4 py-3 bg-green-500 text-white font-semibold rounded-2xl shadow-lg hover:bg-green-600 transition duration-200 transform hover:scale-[1.01] active:scale-95">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.218A2 2 0 0110.153 4h3.694a2 2 0 011.664.89l.812 1.218a2 2 0 001.664.89H21a2 2 0 012 2v10a2 2 0 01-2 2H3a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                        <span>Use Camera</span>
+                    </button>
+                </div>
+
+                <!-- Camera/Preview Section -->
+                <div id="camera-preview-section" class="hidden space-y-4">
+                    <div class="relative w-full aspect-video rounded-xl overflow-hidden shadow-inner bg-gray-900">
+                        <video id="camera-video" class="w-full h-full object-cover" autoplay playsinline></video>
+                        <img id="image-preview" class="w-full h-full object-contain hidden" alt="Waste Preview">
+                        <canvas id="camera-canvas" class="hidden"></canvas>
+                    </div>
+
+                    <div class="flex space-x-3">
+                        <button id="capture-btn" class="flex-1 px-4 py-3 bg-yellow-500 text-white font-semibold rounded-2xl shadow-lg hover:bg-yellow-600 transition duration-200 transform hover:scale-[1.01] active:scale-95">
+                            Capture Photo
+                        </button>
+                        <button id="switch-to-upload-btn" class="px-4 py-3 bg-gray-300 text-gray-800 font-semibold rounded-2xl shadow-lg hover:bg-gray-400 transition duration-200 transform hover:scale-[1.01] active:scale-95">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Shared Action Button -->
+                <button id="classify-btn" class="w-full px-4 py-3 bg-blue-600 text-white font-bold rounded-2xl shadow-xl hover:bg-blue-700 transition duration-200 transform hover:scale-[1.01] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed hidden">
+                    Classify Waste
+                </button>
+
+                <!-- Loading Indicator -->
+                <div id="loading-indicator" class="hidden flex justify-center items-center p-4">
+                    <svg class="animate-spin -ml-1 mr-3 h-6 w-6 text-blue-600 loader rounded-full border-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"></svg>
+                    <span class="text-blue-600 font-semibold">Analyzing waste image...</span>
+                </div>
+
+                <!-- Error Message -->
+                <div id="error-message" class="hidden p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg shadow-inner" role="alert">
+                    <p id="error-text" class="text-sm font-medium"></p>
                 </div>
                 
-                <!-- Camera View -->
-                <div id="camera-view" class="hidden">
-                    <video id="camera-feed" playsinline></video>
-                    <canvas id="camera-canvas" class="hidden"></canvas>
-                    <div class="mt-4 flex flex-col sm:flex-row gap-3 justify-center">
-                        <button id="capture-btn" class="w-full sm:w-auto bg-red-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-red-700 transition-colors">Take Photo</button>
-                        <button id="cancel-camera-btn" class="w-full sm:w-auto bg-gray-200 text-gray-700 font-medium py-3 px-6 rounded-lg hover:bg-gray-300">Cancel</button>
-                    </div>
-                </div>
-
-                <!-- Image Preview Section -->
-                <div id="preview-section" class="hidden text-center">
-                    <img id="image-preview" src="#" alt="Image preview" class="max-w-full max-h-72 mx-auto rounded-lg shadow-md">
-                    <div class="mt-6 flex flex-col sm:flex-row gap-3 justify-center">
-                        <button id="classify-btn" class="w-full sm:w-auto bg-blue-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 disabled:bg-gray-400">
-                            Classify Waste
-                        </button>
-                        <button id="remove-btn" class="w-full sm:w-auto bg-gray-200 text-gray-700 font-medium py-3 px-6 rounded-lg hover:bg-gray-300 transition-colors">
-                            Change Image
-                        </button>
-                    </div>
-                </div>
-
                 <!-- Result Section -->
-                <div id="result-section" class="hidden">
-                    <div id="loader" class="hidden mx-auto loader"></div>
-                    <div id="result-content" class="hidden">
-                        <h2 class="text-2xl font-bold text-center text-gray-800 mb-4">Classification Result</h2>
-                        <div id="result-card" class="p-6 rounded-xl">
-                            <div class="flex items-center justify-center">
-                                <div id="result-icon" class="w-16 h-16 rounded-full flex items-center justify-center mr-4"></div>
-                                <p id="result-text" class="text-2xl font-semibold"></p>
-                            </div>
-                            <div class="mt-4 text-center">
-                                <p class="text-gray-700 font-medium">Confidence: <span id="confidence-score" class="font-bold"></span></p>
-                                <!-- Optimal Disposal Method -->
-                                <div id="disposal-info" class="mt-4 p-3 bg-white rounded-lg border border-dashed border-gray-300">
-                                    <p class="text-sm font-semibold text-gray-700 mb-1">Optimal Disposal Method:</p>
-                                    <p id="disposal-method-text" class="text-base font-bold text-green-600"></p>
-                                </div>
-                                <!-- END Optimal Disposal Method -->
-                                <p class="text-gray-600 mt-4 text-sm italic">"<span id="reasoning-text"></span>"</p>
-                            </div>
-                        </div>
-                        <div class="text-center mt-6">
-                             <button id="start-over-btn" class="w-full sm:w-auto bg-blue-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-blue-700 transition-colors">Classify Another Item</button>
-                        </div>
+                <div id="result-section" class="hidden bg-gray-50 p-5 rounded-2xl border border-gray-200 shadow-md">
+                    <h2 class="text-xl font-bold text-gray-800 mb-3 border-b pb-2 text-indigo-700">Classification Result</h2>
+                    <div class="space-y-3 text-base">
+                        <p><strong>Type:</strong> <span id="result-type" class="font-bold text-indigo-600"></span></p>
+                        <p><strong>Confidence:</strong> <span id="result-confidence" class="font-bold text-green-600"></span></p>
+                        <p><strong>Disposal:</strong> <span id="result-disposal" class="font-medium text-gray-700 block mt-1 bg-white p-2 rounded-lg border"></span></p>
+                        <p><strong>Reason:</strong> <span id="result-reason" class="font-normal text-gray-600 block mt-1 bg-white p-2 rounded-lg border"></span></p>
                     </div>
                 </div>
-                
-                <!-- Error Section -->
-                <div id="error-section" class="hidden mt-6 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg" role="alert">
-                    <strong class="font-bold">Error:</strong>
-                    <span class="block sm:inline" id="error-message"></span>
+
+                <!-- List of supported waste types for context -->
+                <div class="mt-6 text-sm text-gray-500 p-4 border-t border-gray-100">
+                    <p class="font-semibold text-gray-700 mb-2">Supported Categories:</p>
+                    <ul class="list-disc list-inside space-y-1 ml-2">
+                        <li>Biodegradable Waste</li>
+                        <li>Recyclable Waste</li>
+                        <li>Non-Recyclable Waste</li>
+                        <li>Hazardous Waste</li>
+                        <li>Biomedical Waste</li>
+                        <li>E-waste</li>
+                    </ul>
                 </div>
+
             </div>
         </main>
     </div>
 
     <script>
-        const dropZone = document.getElementById('drop-zone');
+        // --- API & Environment Setup ---
+        // API key will be automatically provided by the Canvas environment.
+        const apiKey = ""; 
+        const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=" + apiKey;
+        
+        // --- DOM Elements ---
         const fileInput = document.getElementById('file-input');
-        const uploadSection = document.getElementById('upload-section');
+        const dropZone = document.getElementById('drop-zone');
+        const fileSelectBtn = document.getElementById('file-select-btn');
         const cameraBtn = document.getElementById('camera-btn');
-        const cameraView = document.getElementById('camera-view');
-        const cameraFeed = document.getElementById('camera-feed');
-        const cameraCanvas = document.getElementById('camera-canvas');
+        const switchToUploadBtn = document.getElementById('switch-to-upload-btn');
         const captureBtn = document.getElementById('capture-btn');
-        const cancelCameraBtn = document.getElementById('cancel-camera-btn');
-        const previewSection = document.getElementById('preview-section');
-        const imagePreview = document.getElementById('image-preview');
         const classifyBtn = document.getElementById('classify-btn');
-        const removeBtn = document.getElementById('remove-btn');
-        const resultSection = document.getElementById('result-section');
-        const loader = document.getElementById('loader');
-        const resultContent = document.getElementById('result-content');
-        const resultCard = document.getElementById('result-card');
-        const resultIcon = document.getElementById('result-icon');
-        const resultText = document.getElementById('result-text');
-        const confidenceScore = document.getElementById('confidence-score');
-        const reasoningText = document.getElementById('reasoning-text');
-        const startOverBtn = document.getElementById('start-over-btn');
-        const errorSection = document.getElementById('error-section');
-        const errorMessage = document.getElementById('error-message');
-        const disposalMethodText = document.getElementById('disposal-method-text'); 
+        
+        const inputSection = document.getElementById('input-section');
+        const cameraPreviewSection = document.getElementById('camera-preview-section');
+        const cameraVideo = document.getElementById('camera-video');
+        const cameraCanvas = document.getElementById('camera-canvas');
+        const imagePreview = document.getElementById('image-preview');
 
-        let imageBase64 = null;
+        const loadingIndicator = document.getElementById('loading-indicator');
+        const errorMessage = document.getElementById('error-message');
+        const errorText = document.getElementById('error-text');
+        const resultSection = document.getElementById('result-section');
+
+        let currentImageBase64 = null;
+        let currentImageMimeType = null;
         let cameraStream = null;
 
-        // --- Event Listeners ---
-        dropZone.addEventListener('click', () => fileInput.click());
-        dropZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dropZone.classList.add('drag-over');
-        });
-        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
-        dropZone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            dropZone.classList.remove('drag-over');
-            const files = e.dataTransfer.files;
-            if (files.length) {
-                handleFile(files[0]);
-            }
-        });
-        fileInput.addEventListener('change', (e) => {
-            if (e.target.files.length) {
-                handleFile(e.target.files[0]);
-            }
-        });
-        
-        cameraBtn.addEventListener('click', startCamera);
-        captureBtn.addEventListener('click', captureImage);
-        cancelCameraBtn.addEventListener('click', stopCamera);
-        
-        classifyBtn.addEventListener('click', classifyImage);
-        removeBtn.addEventListener('click', resetUI);
-        startOverBtn.addEventListener('click', resetUI);
+        // --- Utility Functions ---
 
+        /**
+         * Hides all dynamic content sections (loading, error, result)
+         */
+        function hideAllStates() {
+            loadingIndicator.classList.add('hidden');
+            errorMessage.classList.add('hidden');
+            resultSection.classList.add('hidden');
+            classifyBtn.classList.add('hidden');
+            classifyBtn.disabled = true;
+            errorText.textContent = '';
+        }
 
-        // --- Camera Functions ---
-        async function startCamera() {
-            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-                try {
-                    // Requesting 'environment' (rear) camera on mobile
-                    cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-                    cameraFeed.srcObject = cameraStream;
-                    await cameraFeed.play();
-                    uploadSection.classList.add('hidden');
-                    cameraView.classList.remove('hidden');
-                    cameraView.classList.add('fade-in');
-                } catch (err) {
-                    console.error("Error accessing camera: ", err);
-                    showError("Could not access the camera. Please ensure you have given permission.");
-                }
-            } else {
-                showError("Your browser does not support camera access.");
+        /**
+         * Shows an error message in the dedicated UI section.
+         * @param {string} message - The error message to display.
+         */
+        function showError(message) {
+            hideAllStates();
+            errorText.textContent = message;
+            errorMessage.classList.remove('hidden');
+        }
+
+        /**
+         * Switches the view between file upload and camera preview.
+         * @param {'upload'|'camera'} mode 
+         */
+        function switchMode(mode) {
+            hideAllStates();
+            stopCamera();
+            currentImageBase64 = null;
+            imagePreview.classList.add('hidden');
+
+            if (mode === 'upload') {
+                inputSection.classList.remove('hidden');
+                cameraPreviewSection.classList.add('hidden');
+            } else if (mode === 'camera') {
+                inputSection.classList.add('hidden');
+                cameraPreviewSection.classList.remove('hidden');
+                startCamera();
             }
         }
 
+        /**
+         * Displays the captured or selected image.
+         * @param {string} base64 - Base64 data URL of the image.
+         */
+        function displayImagePreview(base64) {
+            hideAllStates();
+            imagePreview.src = base64;
+            imagePreview.classList.remove('hidden');
+            cameraVideo.classList.add('hidden');
+            classifyBtn.classList.remove('hidden');
+            classifyBtn.disabled = false;
+        }
+
+        /**
+         * Starts the camera stream (prefers rear camera on mobile).
+         */
+        async function startCamera() {
+            try {
+                // Request camera stream, preferring the environment (rear) camera on mobile
+                const constraints = {
+                    video: {
+                        facingMode: { ideal: 'environment' }
+                    }
+                };
+                cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
+                cameraVideo.srcObject = cameraStream;
+                cameraVideo.classList.remove('hidden');
+            } catch (err) {
+                console.error("Camera access denied or error:", err);
+                showError("Could not access camera. Please check permissions or use file upload.");
+                switchMode('upload');
+            }
+        }
+
+        /**
+         * Stops the active camera stream.
+         */
         function stopCamera() {
             if (cameraStream) {
                 cameraStream.getTracks().forEach(track => track.stop());
+                cameraStream = null;
             }
-            cameraView.classList.add('hidden');
-            uploadSection.classList.remove('hidden');
-            uploadSection.classList.add('fade-in');
-        }
-        
-        function captureImage() {
-            cameraCanvas.width = cameraFeed.videoWidth;
-            cameraCanvas.height = cameraFeed.videoHeight;
-            cameraCanvas.getContext('2d').drawImage(cameraFeed, 0, 0, cameraCanvas.width, cameraCanvas.height);
-            const dataUrl = cameraCanvas.toDataURL('image/jpeg', 0.9);
-            imagePreview.src = dataUrl;
-            imageBase64 = dataUrl.split(',')[1];
-            stopCamera();
-            showPreview();
         }
 
-        // --- Image Handling ---
-        function resizeImage(file, maxWidth, maxHeight, quality) {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    const img = new Image();
-                    img.onload = () => {
-                        let width = img.width;
-                        let height = img.height;
-
-                        // Calculate new dimensions to fit within maxWidth/maxHeight while preserving aspect ratio
-                        if (width > height) {
-                            if (width > maxWidth) {
-                                height *= maxWidth / width;
-                                width = maxWidth;
-                            }
-                        } else {
-                            if (height > maxHeight) {
-                                width *= maxHeight / height;
-                                height = maxHeight;
-                            }
-                        }
-
-                        const canvas = document.createElement('canvas');
-                        canvas.width = width;
-                        canvas.height = height;
-                        const ctx = canvas.getContext('2d');
-                        ctx.drawImage(img, 0, 0, width, height);
-                        // Resolve with the downscaled and compressed image Data URL
-                        resolve(canvas.toDataURL('image/jpeg', quality));
-                    };
-                    img.onerror = reject;
-                    img.src = e.target.result;
-                };
-                reader.onerror = reject;
-                reader.readAsDataURL(file);
-            });
-        }
-
-        async function handleFile(file) {
-            if (!file.type.startsWith('image/')) {
-                showError("Please upload a valid image file.");
+        /**
+         * Captures a frame from the video stream and sets it as the current image.
+         */
+        function capturePhoto() {
+            if (!cameraStream) {
+                showError("Camera stream is not active.");
                 return;
             }
-            try {
-                // Resize image to keep API payload small and processing fast
-                const resizedDataUrl = await resizeImage(file, 512, 512, 0.9);
-                imagePreview.src = resizedDataUrl;
-                imageBase64 = resizedDataUrl.split(',')[1];
-                showPreview();
-            } catch (error) {
-                console.error("Error processing image:", error);
-                showError("Could not process the selected image file.");
-            }
-        }
 
-        // --- UI Functions ---
-        function showPreview() {
-            uploadSection.classList.add('hidden');
-            resultSection.classList.add('hidden');
-            cameraView.classList.add('hidden');
-            previewSection.classList.remove('hidden');
-            previewSection.classList.add('fade-in');
-            errorSection.classList.add('hidden');
-            classifyBtn.disabled = false;
-        }
+            const video = cameraVideo;
+            const canvas = cameraCanvas;
 
-        function resetUI() {
+            // Set canvas dimensions to match video stream
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            // Convert canvas content to a Base64 data URL
+            const dataUrl = canvas.toDataURL('image/png');
+            currentImageMimeType = 'image/png';
+            currentImageBase64 = dataUrl.split(',')[1];
+            
+            // Show preview and enable classification
+            displayImagePreview(dataUrl);
             stopCamera();
-            previewSection.classList.add('hidden');
-            resultSection.classList.add('hidden');
-            uploadSection.classList.remove('hidden');
-            uploadSection.classList.add('fade-in');
-            fileInput.value = '';
-            imageBase64 = null;
-            imagePreview.src = '#';
-            errorSection.classList.add('hidden');
-        }
-        
-        function showLoading(isLoading) {
-            if(isLoading) {
-                previewSection.classList.add('hidden');
-                errorSection.classList.add('hidden');
-                resultSection.classList.remove('hidden');
-                loader.classList.remove('hidden');
-                resultContent.classList.add('hidden');
-                classifyBtn.disabled = true;
-                classifyBtn.textContent = 'Classifying...';
-            } else {
-                loader.classList.add('hidden');
-                resultContent.classList.remove('hidden');
-                resultContent.classList.add('fade-in');
-                classifyBtn.disabled = false;
-                classifyBtn.textContent = 'Classify Waste';
-            }
-        }
-        
-        function displayResult(data) {
-            const wasteType = data.waste_type;
-            const confidence = data.confidence;
-            const reasoning = data.reasoning;
-            const disposalMethod = data.disposal_method; 
-
-            // Normalize wasteType to match config keys (remove ' Waste' and spaces/hyphens, lower case)
-            const normalizedType = wasteType.toLowerCase().replace(/ waste/g, '').replace(/-/g, '').replace(/\s/g, '');
-
-            // Define configurations for the six waste types (now numbered for internal clarity)
-            const wasteConfigs = {
-                // 1. Biodegradable (Organic/Compost)
-                'biodegradable': {
-                    number: 1, // Category Number
-                    label: 'Biodegradable Waste',
-                    cardClass: 'bg-green-100 border border-green-300',
-                    iconClass: 'bg-green-500',
-                    textClass: 'text-green-800',
-                    // Organic/Compost Icon
-                    iconSvg: `<svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>`
-                },
-                // 2. Recyclable
-                'recyclable': {
-                    number: 2, // Category Number
-                    label: 'Recyclable Waste',
-                    cardClass: 'bg-blue-100 border border-blue-300',
-                    iconClass: 'bg-blue-500',
-                    textClass: 'text-blue-800',
-                    // Recycle Icon 
-                    iconSvg: `<svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11.412 10.5h-5.029a2 2 0 01-1.642-.993l-1.31-2.618m-4.001 1.002a2 2 0 01-1.643-.993l-1.31-2.618m4.001 1.002a2 2 0 01-1.643-.993l-1.31-2.618m4.001 1.002a2 2 0 01-1.643-.993l-1.31-2.618M18 10h-4M7 10h3" /><path stroke-linecap="round" stroke-linejoin="round" d="M11 15v-5a3 3 0 013-3h.01M16 15v-5a3 3 0 013-3h.01" /></svg>`
-                },
-                // 3. Non-Recyclable (Landfill)
-                'nonrecyclable': {
-                    number: 3, // Category Number
-                    label: 'Non-Recyclable Waste',
-                    cardClass: 'bg-gray-100 border border-gray-300',
-                    iconClass: 'bg-gray-500',
-                    textClass: 'text-gray-800',
-                    // Trash Can Icon
-                    iconSvg: `<svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>`
-                },
-                // 4. Hazardous
-                'hazardous': {
-                    number: 4, // Category Number
-                    label: 'Hazardous Waste',
-                    cardClass: 'bg-red-100 border border-red-400',
-                    iconClass: 'bg-red-600',
-                    textClass: 'text-red-800',
-                    // Hazard Warning Icon
-                    iconSvg: `<svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.01 0 1.516-1.29.803-2.091L12.87 3.909c-.714-.801-1.892-.801-2.606 0L4.238 17.909c-.713.801-.207 2.091.803 2.091z" /></svg>`
-                },
-                // 5. Biomedical
-                'biomedical': {
-                    number: 5, // Category Number
-                    label: 'Biomedical Waste',
-                    cardClass: 'bg-pink-100 border border-pink-300',
-                    iconClass: 'bg-pink-600',
-                    textClass: 'text-pink-800',
-                    // Medical Cross Icon
-                    iconSvg: `<svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`
-                },
-                // 6. E-waste
-                'ewaste': {
-                    number: 6, // Category Number
-                    label: 'E-waste',
-                    cardClass: 'bg-purple-100 border border-purple-300',
-                    iconClass: 'bg-purple-600',
-                    textClass: 'text-purple-800',
-                    // Electronics/Chip Icon
-                    iconSvg: `<svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.75 17L9 20l-1.5-1.5m3-6l.75.75L13 14.25m-6 3l1.5-1.5M14.25 10l.5.5.75.75m-4.75 0l-1.5-1.5M18 17.25c-3.165 0-3.805-.072-4.062-.158.268.106.529.21.782.316m-4.062-.158C7.805 17.178 7.165 17.25 4 17.25m14 0h.008v.008h-.008zM4 17.25h.008v.008H4zM16.5 14.25c0 1.38-.99 2.5-2.25 2.5s-2.25-1.12-2.25-2.5 1.01-2.5 2.25-2.5 2.25 1.12 2.25 2.5zM6.16 10.75a7.5 7.5 0 0111.68 0M12 7.5a7.5 7.5 0 00-6.16 3.25m6.16-3.25v-.01m0 0a1 1 0 100 2 1 1 0 000-2z" /></svg>`
-                },
-            };
-
-            // Use the determined config, or default to Non-Recyclable if the model returns an unrecognized value
-            const config = wasteConfigs[normalizedType] || wasteConfigs['nonrecyclable']; 
-
-            // ************************************************
-            // MODIFICATION: Add the category number to the text
-            // ************************************************
-            resultText.textContent = `${config.number}. ${config.label}`;
-            
-            confidenceScore.textContent = `${(confidence * 100).toFixed(1)}%`;
-            reasoningText.textContent = reasoning;
-            disposalMethodText.textContent = disposalMethod;
-            
-            // Apply dynamic styling based on classification config
-            resultCard.className = `p-6 rounded-xl ${config.cardClass}`;
-            resultIcon.className = `w-16 h-16 rounded-full flex items-center justify-center mr-4 ${config.iconClass}`;
-            resultIcon.innerHTML = config.iconSvg;
-            resultText.className = `text-2xl font-semibold ${config.textClass}`;
-            
-            showLoading(false);
         }
 
-        function showError(message) {
-            errorMessage.textContent = message;
-            errorSection.classList.remove('hidden');
-            errorSection.classList.add('fade-in');
-            resultSection.classList.add('hidden');
-            previewSection.classList.add('hidden');
-            cameraView.classList.add('hidden');
-            loader.classList.add('hidden');
-            classifyBtn.disabled = false;
-            classifyBtn.textContent = 'Classify Waste';
-        }
 
-        // --- API Call ---
-        async function classifyImage() {
-            if (!imageBase64) {
-                showError("Please provide an image first.");
+        /**
+         * Converts a File object to a Base64 string for API submission.
+         * @param {File} file - The image file object.
+         */
+        function processFile(file) {
+            if (!file || !file.type.startsWith('image/')) {
+                showError("Please select a valid image file.");
                 return;
             }
-            showLoading(true);
 
-            // API Key provided by the user
-            const apiKey = "AIzaSyAD4OtSfd38C_wzG6bbJ_z7GOi3SE6jw8A"; 
-            
-            const model = "gemini-2.5-flash-preview-05-20";
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-
-            // Disposal method guidance for the model
-            const disposalGuidance = `
-Based on the classification, determine the single most 'Optimal Disposal Method'. Use the following guidelines strictly:
-1. Biodegradable Waste: Use 'Composting or Anaerobic Digestion (for biogas/fertilizer)'.
-2. Recyclable Waste (Paper, Glass, Metal, non-PVC/PS Plastics): Use 'Recycling at a municipal facility'.
-3. Non-Recyclable Waste (Contaminated or unrecyclable items): Use 'Landfill or Incineration with energy recovery'.
-4. Hazardous Waste (Batteries, Paint, Chemicals): Use 'Take to a designated Hazardous Waste Collection Center (Neutralization/Stabilization)'.
-5. Biomedical Waste (Infectious): Use 'Specialized Medical Waste Disposal (Autoclaving or Incineration)'.
-6. E-waste (Electronics, phones): Use 'Certified E-waste Recycler or Manufacturer Take-back Program'.
-7. Sanitary Waste (Diapers, Napkins - if applicable): Use 'Incineration or safe individual disposal (wrapped)'.
-`;
-
-            const prompt = `Analyze the image and classify the waste into one of the following six categories: 'Biodegradable Waste', 'Recyclable Waste', 'Non-Recyclable Waste', 'Hazardous Waste', 'Biomedical Waste', or 'E-waste'. 
-${disposalGuidance}
-Respond ONLY with a valid JSON object containing 'waste_type', 'confidence', 'reasoning', and 'disposal_method' (which must be a string from the guidance above).`;
-
-            const payload = {
-                contents: [{
-                    parts: [
-                        { text: prompt },
-                        { inlineData: { mimeType: "image/jpeg", data: imageBase64 } }
-                    ]
-                }],
-                generationConfig: {
-                    responseMimeType: "application/json",
-                    responseSchema: {
-                        type: "OBJECT",
-                        properties: {
-                            waste_type: { type: "STRING", description: "One of 'Biodegradable Waste', 'Recyclable Waste', 'Non-Recyclable Waste', 'Hazardous Waste', 'Biomedical Waste', or 'E-waste'." },
-                            confidence: { type: "NUMBER", description: "A floating-point number between 0 and 1 representing classification certainty." },
-                            reasoning: { type: "STRING", description: "A brief, one-sentence explanation for the classification." },
-                            disposal_method: { type: "STRING", description: "The single optimal disposal method based on the provided guidance." } 
-                        },
-                        required: ["waste_type", "confidence", "reasoning", "disposal_method"],
-                        propertyOrdering: ["waste_type", "confidence", "reasoning", "disposal_method"]
-                    }
-                },
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const dataUrl = e.target.result;
+                currentImageMimeType = file.type;
+                currentImageBase64 = dataUrl.split(',')[1];
+                displayImagePreview(dataUrl);
             };
-            
-            try {
-                const response = await fetchWithRetry(apiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    let apiMessage = errorData.error?.message || 'API request failed with an unknown status.';
-                    
-                    if (apiMessage.includes('unregistered callers') || apiMessage.includes('API key not valid')) {
-                        apiMessage = "Authentication Failed: The provided API key may be invalid or restricted.";
-                    }
-
-                    throw new Error(apiMessage);
-                }
-
-                const result = await response.json();
-                const candidate = result.candidates?.[0];
-
-                if (candidate && candidate.content?.parts?.[0]?.text) {
-                    const text = candidate.content.parts[0].text;
-                    const parsedJson = JSON.parse(text);
-                    displayResult(parsedJson);
-                } else {
-                    throw new Error("Invalid response structure or empty result from the API.");
-                }
-
-            } catch (error) {
-                console.error("Classification Error:", error);
-                showError(error.message || "An unexpected error occurred. Please try again.");
-            }
+            reader.onerror = function() {
+                showError("Failed to read the file.");
+            };
+            reader.readAsDataURL(file);
         }
-        
-        // Helper function for exponential backoff
+
+        // --- API Communication ---
+
+        /**
+         * Helper function for exponential backoff during fetch requests.
+         */
         async function fetchWithRetry(url, options, retries = 3, delay = 1000) {
             for (let i = 0; i < retries; i++) {
                 try {
                     const response = await fetch(url, options);
-                    // Check for rate limiting status codes (429)
                     if (response.status === 429 && i < retries - 1) {
                          // Throw to enter catch and retry loop
-                         throw new Error(`Rate limit exceeded, retrying in ${delay * Math.pow(2, i + 1) / 1000}s`);
+                         throw new Error(`Rate limit exceeded, retrying...`);
+                    }
+                    if (!response.ok) {
+                        // Check for common error status codes
+                        const errorBody = await response.json().catch(() => ({}));
+                        const errorMsg = errorBody.error?.message || `API request failed with status ${response.status}.`;
+                        throw new Error(errorMsg);
                     }
                     return response;
                 } catch (error) {
@@ -583,3 +330,171 @@ Respond ONLY with a valid JSON object containing 'waste_type', 'confidence', 're
                 }
             }
         }
+
+        /**
+         * Calls the Gemini API to classify the uploaded/captured image.
+         */
+        async function classifyImage() {
+            if (!currentImageBase64) {
+                showError("No image selected or captured for classification.");
+                return;
+            }
+
+            hideAllStates();
+            loadingIndicator.classList.remove('hidden');
+
+            const systemPrompt = `You are a world-class waste classification AI named NeuroBin. Analyze the provided image and classify the waste into one of these six categories: 'Biodegradable Waste', 'Recyclable Waste', 'Non-Recyclable Waste', 'Hazardous Waste', 'Biomedical Waste', or 'E-waste'. 
+                                  Provide a brief, single-sentence reason for the classification and suggest the best disposal method. 
+                                  Crucially, return the classification result as a single JSON object with the following schema. DO NOT include any explanatory text outside of the JSON block.`;
+
+            const userPrompt = "Classify the waste in this image, provide a brief reason, and suggest the best disposal method.";
+            
+            const payload = {
+                contents: [{ 
+                    parts: [
+                        { text: userPrompt },
+                        { inlineData: { mimeType: currentImageMimeType, data: currentImageBase64 } }
+                    ]
+                }],
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: "OBJECT",
+                        properties: {
+                            "type": { "type": "STRING", "description": "The classified waste category (e.g., 'Recyclable Waste')." },
+                            "reason": { "type": "STRING", "description": "A brief reason for the classification." },
+                            "disposal": { "type": "STRING", "description": "The optimal disposal method." },
+                            "confidence": { "type": "STRING", "description": "A confidence score as a percentage string (e.g., '95%')." }
+                        },
+                        required: ["type", "reason", "disposal", "confidence"]
+                    }
+                }
+            };
+
+            try {
+                const response = await fetchWithRetry(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                const result = await response.json();
+                const candidate = result.candidates?.[0];
+
+                if (candidate && candidate.content?.parts?.[0]?.text) {
+                    const jsonString = candidate.content.parts[0].text;
+                    const parsedJson = JSON.parse(jsonString);
+                    displayResult(parsedJson);
+                } else {
+                    throw new Error("Invalid response structure or empty result from the API.");
+                }
+
+            } catch (error) {
+                console.error("Classification Error:", error);
+                // Check for API key error specifically
+                if (error.message.includes("API key not valid")) {
+                    showError("Authentication Failed: The provided API key is invalid or missing. Please check your environment setup.");
+                } else {
+                    showError(error.message || "An unexpected error occurred during classification. Please try again.");
+                }
+            } finally {
+                loadingIndicator.classList.add('hidden');
+            }
+        }
+
+        /**
+         * Displays the classification result to the user.
+         * @param {object} data - The parsed JSON result from the API.
+         */
+        function displayResult(data) {
+            hideAllStates();
+            
+            // Safely extract data, providing defaults if needed
+            const type = data.type || 'N/A';
+            const confidence = data.confidence || 'N/A';
+            const reason = data.reason || 'No reason provided.';
+            const disposal = data.disposal || 'Disposal method unknown.';
+            
+            document.getElementById('result-type').textContent = type;
+            document.getElementById('result-confidence').textContent = confidence;
+            document.getElementById('result-reason').textContent = reason;
+            document.getElementById('result-disposal').textContent = disposal;
+
+            // Apply color coding based on a simplified type check for better visibility
+            const typeElement = document.getElementById('result-type');
+            typeElement.className = 'font-bold'; 
+            if (type.toLowerCase().includes('recyclable')) {
+                typeElement.classList.add('text-blue-600');
+            } else if (type.toLowerCase().includes('hazardous') || type.toLowerCase().includes('biomedical') || type.toLowerCase().includes('e-waste')) {
+                typeElement.classList.add('text-red-600');
+            } else if (type.toLowerCase().includes('biodegradable')) {
+                typeElement.classList.add('text-green-600');
+            } else {
+                typeElement.classList.add('text-gray-800');
+            }
+
+            resultSection.classList.remove('hidden');
+        }
+
+        // --- Event Listeners ---
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // Setup initial state
+            switchMode('upload');
+        });
+
+        // 1. File Input/Drop Zone Handling
+        fileSelectBtn.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        dropZone.addEventListener('click', (e) => {
+            // Only trigger file input if the click isn't on the button itself (which already handles it)
+            if (e.target.id !== 'file-select-btn') {
+                fileInput.click();
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                processFile(e.target.files[0]);
+            }
+        });
+
+        // Drag and Drop events
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('drag-over');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('drag-over');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('drag-over');
+            if (e.dataTransfer.files.length > 0) {
+                processFile(e.dataTransfer.files[0]);
+            }
+        });
+
+
+        // 2. Camera Button Handling
+        cameraBtn.addEventListener('click', () => {
+            switchMode('camera');
+        });
+
+        switchToUploadBtn.addEventListener('click', () => {
+            switchMode('upload');
+        });
+
+        captureBtn.addEventListener('click', capturePhoto);
+        
+        // 3. Classification Button
+        classifyBtn.addEventListener('click', classifyImage);
+
+    </script>
+</body>
+</html>
