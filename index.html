@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WasteWise - Mobile Waste Classifier</title>
+    <title>NeuroBin - Mobile Waste Classifier</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -79,10 +79,12 @@
         <header class="bg-white shadow-md w-full">
             <nav class="container mx-auto px-4 py-3 flex items-center">
                 <div class="flex items-center space-x-2">
+                    <!-- Updated Icon - still green -->
                     <svg class="w-8 h-8 text-green-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M14.25 9.75L16.5 12l-2.25 2.25m-4.5 0L7.5 12l2.25-2.25M6 20.25h12A2.25 2.25 0 0020.25 18V6A2.25 2.25 0 0018 3.75H6A2.25 2.25 0 003.75 6v12A2.25 2.25 0 006 20.25z" />
                     </svg>
-                    <h1 class="text-xl font-bold text-gray-800">WasteWise</h1>
+                    <!-- Name changed to NeuroBin -->
+                    <h1 class="text-xl font-bold text-gray-800">NeuroBin</h1>
                 </div>
             </nav>
         </header>
@@ -113,8 +115,8 @@
                             <div class="flex items-center"><span class="font-bold text-gray-800 w-5">4.</span> Hazardous</div>
                             <div class="flex items-center"><span class="font-bold text-gray-800 w-5">2.</span> Recyclable</div>
                             <div class="flex items-center"><span class="font-bold text-gray-800 w-5">5.</span> Biomedical</div>
-                            <div class="flex items-center"><span class="font-bold text-gray-800 w-5">6.</span> E-waste</div>
                             <div class="flex items-center"><span class="font-bold text-gray-800 w-5">3.</span> Non-Recyclable</div>
+                            <div class="flex items-center"><span class="font-bold text-gray-800 w-5">6.</span> E-waste</div>
                         </div>
                     </div>
                     <!-- End Category Legend Section -->
@@ -270,13 +272,14 @@
         let cameraStream = null;
 
         // --- Waste Configuration (for consistent display) ---
+        // Using Emojis for better visual representation in history
         const wasteConfigs = {
-            'biodegradable': { number: 1, label: 'Biodegradable Waste', icon: '♻️', cardClass: 'bg-green-100 border-green-300', textClass: 'text-green-700', historyColor: 'text-green-600' },
-            'recyclable': { number: 2, label: 'Recyclable Waste', icon: '📦', cardClass: 'bg-blue-100 border-blue-300', textClass: 'text-blue-700', historyColor: 'text-blue-600' },
+            'biodegradable': { number: 1, label: 'Biodegradable Waste', icon: '🍃', cardClass: 'bg-green-100 border-green-300', textClass: 'text-green-700', historyColor: 'text-green-600' },
+            'recyclable': { number: 2, label: 'Recyclable Waste', icon: '♻️', cardClass: 'bg-blue-100 border-blue-300', textClass: 'text-blue-700', historyColor: 'text-blue-600' },
             'nonrecyclable': { number: 3, label: 'Non-Recyclable Waste', icon: '🗑️', cardClass: 'bg-gray-100 border-gray-300', textClass: 'text-gray-700', historyColor: 'text-gray-600' },
-            'hazardous': { number: 4, label: 'Hazardous Waste', icon: '⚠️', cardClass: 'bg-red-100 border-red-400', textClass: 'text-red-700', historyColor: 'text-red-600' },
-            'biomedical': { number: 5, label: 'Biomedical Waste', icon: '🏥', cardClass: 'bg-pink-100 border-pink-300', textClass: 'text-pink-700', historyColor: 'text-pink-600' },
-            'ewaste': { number: 6, label: 'E-waste', icon: '📱', cardClass: 'bg-purple-100 border-purple-300', textClass: 'text-purple-700', historyColor: 'text-purple-600' },
+            'hazardous': { number: 4, label: 'Hazardous Waste', icon: '☣️', cardClass: 'bg-red-100 border-red-400', textClass: 'text-red-700', historyColor: 'text-red-600' },
+            'biomedical': { number: 5, label: 'Biomedical Waste', icon: '💉', cardClass: 'bg-pink-100 border-pink-300', textClass: 'text-pink-700', historyColor: 'text-pink-600' },
+            'ewaste': { number: 6, label: 'E-waste', icon: '💻', cardClass: 'bg-purple-100 border-purple-300', textClass: 'text-purple-700', historyColor: 'text-purple-600' },
         };
         
         // --- Firebase Functions ---
@@ -308,13 +311,11 @@
                         // Sign in anonymously if no token is provided
                         await signInAnonymously(auth);
                     }
-                    // Initial sign-in with custom token (if present) is handled outside of onAuthStateChanged
                 });
 
                 if (initialAuthToken) {
                     await signInWithCustomToken(auth, initialAuthToken);
                 } else if (!auth.currentUser) {
-                     // Attempt anonymous sign-in if no token was present and user hasn't been set
                     await signInAnonymously(auth);
                 }
 
@@ -355,7 +356,7 @@
             const historyRef = getHistoryCollectionRef();
             if (!historyRef) return;
             
-            // NOTE: Firestore queries are complex. We will fetch all and sort in JS
+            // Fetch all and sort in JS
             const q = query(historyRef);
 
             onSnapshot(q, (snapshot) => {
