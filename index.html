@@ -174,25 +174,53 @@
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { 
             getFirestore, 
-            doc, 
             addDoc, 
             onSnapshot, 
             collection, 
             query, 
             serverTimestamp 
-        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"; // Removed unused 'orderBy'
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"; 
         import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 
         // Set Firebase debug log level
         setLogLevel('Debug');
         
+        // --- HARDCODED FALLBACK CONFIGURATION (FROM USER'S FIRST MESSAGE) ---
+        const USER_FIREBASE_CONFIG = {
+            apiKey: "AIzaSyAsyIFdxENdIbDCvvF1RJH7v_ea1mmBcsw",
+            authDomain: "neurobin-60a06.firebaseapp.com",
+            databaseURL: "https://neurobin-60a06-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "neurobin-60a06",
+            storageBucket: "neurobin-60a06.firebasestorage.app",
+            messagingSenderId: "284735902537",
+            appId: "1:284735902537:web:fb443bf25e632f61ad0098",
+            measurementId: "G-1BXGE1TNDT"
+        };
+
         // --- Global Variables ---
         let app, db, auth, userId;
         let selectedFile = null;
 
         // Global variables provided by the environment
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+
+        // Use environment config if available, otherwise use the hardcoded fallback
+        let firebaseConfig = null;
+        if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+            try {
+                // Attempt to parse the environment variable string
+                firebaseConfig = JSON.parse(__firebase_config);
+            } catch (e) {
+                console.error("Failed to parse __firebase_config, falling back to user-provided config.", e);
+                // Fallback if parsing fails
+                firebaseConfig = USER_FIREBASE_CONFIG;
+            }
+        } else {
+            console.warn("__firebase_config not provided by environment. Using hardcoded configuration.");
+            // Fallback if the environment variable is undefined or null
+            firebaseConfig = USER_FIREBASE_CONFIG;
+        }
+
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
         const LLM_API_KEY = ""; // Empty string for Canvas environment API Key handling
 
@@ -235,6 +263,7 @@
         /** Initializes Firebase and authenticates the user */
         async function initFirebaseAndAuth() {
             if (!firebaseConfig) {
+                // This check should only fail if both environment variable and hardcoded config are missing/invalid
                 showError("Firebase configuration is missing. Cannot initialize the app.");
                 return;
             }
@@ -262,6 +291,8 @@
                         // This case should ideally not happen if signInAnonymously is successful
                         userId = 'unauthenticated';
                         document.getElementById('user-id-display').textContent = userId;
+                        // Still set up event listeners even if auth fails, so image classification can run
+                        setupEventListeners(); 
                         showError("Failed to authenticate user. History will not be saved.");
                     }
                     setupEventListeners();
@@ -349,14 +380,15 @@
              if (lowerType.includes('recyclable')) return 'bg-blue-100 text-blue-800';
              if (lowerType.includes('compost')) return 'bg-green-100 text-green-800';
              if (lowerType.includes('hazardous')) return 'bg-red-100 text-red-800';
-             if (lowerType.includes('landfill')) return 'bg-yellow-100 text-yellow-800';
+             if (lowerType.includes('landfill') || lowerType.includes('general')) return 'bg-yellow-100 text-yellow-800';
              return 'bg-gray-100 text-gray-800';
         }
 
         /** Saves the classification result to Firestore */
         async function saveClassification(imageQuery, result) {
-            if (!db || !userId) {
-                console.error("Database or User ID not available for saving result.");
+            // Only try to save if Firebase is properly initialized and we have a user ID
+            if (!db || !userId || userId === 'unauthenticated') {
+                console.warn("Database or User ID not available for saving result. Skipping history save.");
                 return;
             }
 
@@ -406,7 +438,7 @@
         }
 
         /** Resets the application state to allow for a new upload */
-        function resetApp() {
+        window.resetApp = function() {
             selectedFile = null;
             document.getElementById('file-input').value = '';
             document.getElementById('image-preview-container').classList.add('hidden');
@@ -593,7 +625,7 @@
             }
         }
         
-        // --- Initialization ---\
+        // --- Initialization ---
         window.onload = initFirebaseAndAuth;
 
     </script>
