@@ -6,6 +6,19 @@
     <title>NeuroBin - Mobile Waste Classifier</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Firebase SDK Imports for Realtime Database and Auth -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getDatabase, ref, push, onValue, set, get, child } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
+        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
+
+        // Expose modules globally for access in the script below
+        window.FirebaseModules = {
+            initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged,
+            getDatabase, ref, push, onValue, set, get, child, setLogLevel
+        };
+    </script>
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -61,83 +74,70 @@
         #camera-canvas {
             display: none;
         }
-        .history-item-enter {
-            opacity: 0;
-            transform: translateX(-20px);
-        }
-        .history-item-enter-active {
-            opacity: 1;
-            transform: translateX(0);
-            transition: opacity 300ms, transform 300ms;
+        .history-item:not(:last-child) {
+            border-bottom: 1px solid #e5e7eb;
         }
     </style>
 </head>
-<body class="bg-green-50">
+<body class="bg-gray-50">
 
     <div class="app-container">
         <!-- App Header -->
         <header class="bg-white shadow-md w-full">
             <nav class="container mx-auto px-4 py-3 flex items-center">
                 <div class="flex items-center space-x-2">
-                    <!-- Updated Icon - still green -->
-                    <svg class="w-8 h-8 text-green-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <svg class="w-8 h-8 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M14.25 9.75L16.5 12l-2.25 2.25m-4.5 0L7.5 12l2.25-2.25M6 20.25h12A2.25 2.25 0 0020.25 18V6A2.25 2.25 0 0018 3.75H6A2.25 2.25 0 003.75 6v12A2.25 2.25 0 006 20.25z" />
                     </svg>
-                    <!-- Name changed to NeuroBin -->
                     <h1 class="text-xl font-bold text-gray-800">NeuroBin</h1>
                 </div>
             </nav>
         </header>
 
         <!-- Main Content Area -->
-        <main class="main-content flex-col">
-            <!-- Classification Card -->
-            <div class="w-full max-w-lg mx-auto bg-white rounded-2xl shadow-lg p-6 md:p-8">
-                <!-- User ID Banner -->
-                <div id="user-id-banner" class="mb-4 text-xs text-center text-gray-400 p-2 bg-gray-50 rounded-lg hidden">
-                    <span class="font-semibold text-gray-600">User ID:</span> 
-                    <span id="user-id-text">Loading...</span> 
-                    <span class="text-gray-500">(for history)</span>
-                </div>
-
+        <main class="main-content">
+            <div class="w-full max-w-lg mx-auto bg-white rounded-2xl shadow-xl p-6 md:p-8 mt-4">
                 <!-- Image Upload Section -->
                 <div id="upload-section" class="fade-in">
                     <header class="text-center mb-6">
                         <h2 class="text-2xl md:text-3xl font-bold text-gray-800">Classify Waste</h2>
                         <p class="text-gray-500 mt-2">Upload a photo or use your camera to start.</p>
                     </header>
-                    
-                    <!-- Category Legend Section -->
-                    <div id="category-legend" class="mb-6 p-4 bg-gray-50 rounded-xl border border-gray-200">
-                        <h3 class="text-lg font-semibold text-gray-700 mb-2 text-center">Waste Categories Key</h3>
-                        <div class="grid grid-cols-2 gap-2 text-sm text-gray-600">
-                            <div class="flex items-center"><span class="font-bold text-gray-800 w-5">1.</span> Biodegradable</div>
-                            <div class="flex items-center"><span class="font-bold text-gray-800 w-5">4.</span> Hazardous</div>
-                            <div class="flex items-center"><span class="font-bold text-gray-800 w-5">2.</span> Recyclable</div>
-                            <div class="flex items-center"><span class="font-bold text-gray-800 w-5">5.</span> Biomedical</div>
-                            <div class="flex items-center"><span class="font-bold text-gray-800 w-5">3.</span> Non-Recyclable</div>
-                            <div class="flex items-center"><span class="font-bold text-gray-800 w-5">6.</span> E-waste</div>
+
+                    <!-- Waste Category Key -->
+                    <div class="mb-6 p-4 bg-indigo-50 rounded-lg">
+                        <h3 class="text-lg font-semibold text-indigo-700 mb-2">Waste Categories Key:</h3>
+                        <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-gray-700">
+                            <p><strong>1.</strong> Biodegradable Waste</p>
+                            <p><strong>4.</strong> Hazardous Waste</p>
+                            <p><strong>2.</strong> Recyclable Waste</p>
+                            <p><strong>5.</strong> Biomedical Waste</p>
+                            <p><strong>3.</strong> Non-Recyclable Waste</p>
+                            <p><strong>6.</strong> E-waste</p>
                         </div>
                     </div>
-                    <!-- End Category Legend Section -->
-                    
+
                     <div id="drop-zone" class="drop-zone w-full p-8 text-center rounded-xl cursor-pointer bg-gray-50 hover:bg-gray-100 hidden md:block">
                         <input type="file" id="file-input" class="hidden" accept="image/*">
                         <div class="flex flex-col items-center">
                              <svg class="w-12 h-12 text-gray-400 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l-3 3m3-3l3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" /></svg>
                              <p class="text-gray-600 font-medium">Drag & drop an image here</p>
                              <p class="text-gray-500 my-1">or</p>
-                             <p class="font-semibold text-blue-600">Click to Select File</p>
+                             <p class="font-semibold text-indigo-600">Click to Select File</p>
                         </div>
                     </div>
                     <div class="mt-4 text-center md:mt-0">
-                        <button id="camera-btn" class="w-full bg-gray-800 text-white font-bold py-3 px-6 rounded-lg hover:bg-gray-900 transition-colors flex items-center justify-center gap-2">
+                        <button id="camera-btn" class="w-full bg-indigo-800 text-white font-bold py-3 px-6 rounded-lg hover:bg-indigo-900 transition-colors flex items-center justify-center gap-2">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                             Use Camera
                         </button>
+                        <input type="file" id="file-input-mobile" class="hidden" accept="image/*">
+                        <button id="file-input-btn-mobile" class="w-full bg-gray-200 text-gray-700 font-medium py-3 px-6 rounded-lg hover:bg-gray-300 transition-colors mt-3 block md:hidden">
+                            Select File
+                        </button>
                     </div>
                 </div>
-                
+
                 <!-- Camera View -->
                 <div id="camera-view" class="hidden">
                     <video id="camera-feed" playsinline></video>
@@ -168,17 +168,17 @@
                         <h2 class="text-2xl font-bold text-center text-gray-800 mb-4">Classification Result</h2>
                         <div id="result-card" class="p-6 rounded-xl">
                             <div class="flex items-center justify-center">
-                                <div id="result-icon" class="w-16 h-16 rounded-full flex items-center justify-center mr-4"></div>
-                                <p id="result-text" class="text-xl font-semibold"></p>
+                                <div id="result-icon" class="w-16 h-16 rounded-full flex items-center justify-center mr-4 shadow-lg"></div>
+                                <p id="result-text" class="text-xl md:text-2xl font-semibold"></p>
                             </div>
                             <div class="mt-4 text-center">
                                 <p class="text-gray-700 font-medium">Confidence: <span id="confidence-score" class="font-bold"></span></p>
                                 <!-- Optimal Disposal Method -->
-                                <div id="disposal-info" class="mt-4 p-3 bg-white rounded-lg border border-dashed border-gray-300">
+                                <div id="disposal-info" class="mt-4 p-3 bg-white rounded-lg border border-dashed border-indigo-300">
                                     <p class="text-sm font-semibold text-gray-700 mb-1">Optimal Disposal Method:</p>
-                                    <p id="disposal-method-text" class="text-base font-bold text-green-600"></p>
+                                    <p id="disposal-method-text" class="text-base font-bold text-indigo-600"></p>
                                 </div>
-                                <!-- END Optimal Disposal Method -->
+                                <!-- Reasoning -->
                                 <p class="text-gray-600 mt-4 text-sm italic">"<span id="reasoning-text"></span>"</p>
                             </div>
                         </div>
@@ -187,73 +187,46 @@
                         </div>
                     </div>
                 </div>
-                
+
                 <!-- Error Section -->
                 <div id="error-section" class="hidden mt-6 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg" role="alert">
                     <strong class="font-bold">Error:</strong>
                     <span class="block sm:inline" id="error-message"></span>
                 </div>
             </div>
-            
-            <!-- History Section -->
-            <div class="w-full max-w-lg mx-auto mt-6">
-                <div class="bg-white rounded-2xl shadow-lg p-6">
-                    <div id="history-header" class="flex justify-between items-center cursor-pointer mb-4">
-                        <h3 class="text-xl font-bold text-gray-800">Classification History</h3>
-                        <span id="history-toggle" class="text-gray-500 transform transition-transform duration-300">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg>
-                        </span>
-                    </div>
-                    <div id="history-content" class="space-y-4 max-h-80 overflow-y-auto" style="display: none;">
-                        <p id="history-loading" class="text-center text-sm text-gray-500">Loading history...</p>
-                        <ul id="history-list" class="space-y-3">
-                            <!-- History items will be inserted here -->
-                        </ul>
-                        <p id="history-empty" class="text-center text-sm text-gray-500 hidden">Your classification history is empty.</p>
-                    </div>
+        </main>
+
+        <!-- History Section -->
+        <section class="w-full max-w-lg mx-auto px-4 mt-6">
+            <div id="history-header" class="bg-gray-100 p-4 rounded-t-xl cursor-pointer flex justify-between items-center shadow-md">
+                <h3 class="text-lg font-bold text-gray-800">
+                    <svg class="w-6 h-6 inline-block mr-2 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    Classification History
+                </h3>
+                <svg id="history-arrow" class="w-6 h-6 text-gray-600 transform transition-transform duration-300 rotate-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
+            </div>
+            <div id="history-body" class="bg-white rounded-b-xl shadow-xl p-4 transition-all duration-300 overflow-hidden border border-gray-200">
+                <div id="history-list" class="space-y-3">
+                    <p id="history-loading" class="text-gray-500 text-center">Loading history...</p>
                 </div>
             </div>
-
-        </main>
+        </section>
     </div>
 
-    <!-- Firebase Imports -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        // *** REALTIME DATABASE IMPORTS ***
-        import { getDatabase, ref, push, onValue } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
+    <script>
+        // --- Global Variables ---
+        let db = null;
+        let auth = null;
+        let userId = 'unknown'; // Will be set after auth
+        let isAuthReady = false;
+        let imageBase64 = null;
+        let cameraStream = null;
 
-        // Global variables for Firebase access
-        let db; // This will now hold the Realtime Database instance
-        let auth;
-        let userId = null;
-        
-        // --- Firebase Configuration Setup ---
-        let firebaseConfig = {};
-        const rawConfig = typeof __firebase_config !== 'undefined' ? __firebase_config : '{}';
-        
-        try {
-            // Safely parse the Firebase config from the environment variable
-            firebaseConfig = JSON.parse(rawConfig);
-        } catch (e) {
-            console.error("Error parsing __firebase_config:", e);
-        }
-
-        // Function to sanitize path segments for Realtime Database (removes invalid characters)
-        const sanitizePathSegment = (str) => {
-            // Realtime DB forbids ., #, $, [, ]
-            return str.replace(/[.#$\[\]]/g, '_'); 
-        };
-        
-        // Sanitize the appId to ensure it is compatible with Realtime Database path rules
-        const rawAppId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const appId = sanitizePathSegment(rawAppId); 
-        
-
-        // --- DOM Elements (omitted for brevity, assume they are still here) ---
+        // --- DOM Elements ---
         const dropZone = document.getElementById('drop-zone');
         const fileInput = document.getElementById('file-input');
+        const fileInputMobile = document.getElementById('file-input-mobile');
+        const fileInputBtnMobile = document.getElementById('file-input-btn-mobile');
         const uploadSection = document.getElementById('upload-section');
         const cameraBtn = document.getElementById('camera-btn');
         const cameraView = document.getElementById('camera-view');
@@ -277,173 +250,248 @@
         const errorSection = document.getElementById('error-section');
         const errorMessage = document.getElementById('error-message');
         const disposalMethodText = document.getElementById('disposal-method-text');
-        
-        // History DOM elements
-        const historyHeader = document.getElementById('history-header');
-        const historyContent = document.getElementById('history-content');
-        const historyToggle = document.getElementById('history-toggle');
         const historyList = document.getElementById('history-list');
         const historyLoading = document.getElementById('history-loading');
-        const historyEmpty = document.getElementById('history-empty');
-        const userIdBanner = document.getElementById('user-id-banner');
-        const userIdText = document.getElementById('user-id-text');
+        const historyHeader = document.getElementById('history-header');
+        const historyBody = document.getElementById('history-body');
+        const historyArrow = document.getElementById('history-arrow');
 
-
-        let imageBase64 = null;
-        let cameraStream = null;
-
-        // --- Waste Configuration (for consistent display) ---
-        // Using Emojis for better visual representation in history
-        const wasteConfigs = {
-            'biodegradable': { number: 1, label: 'Biodegradable Waste', icon: '🍃', cardClass: 'bg-green-100 border-green-300', textClass: 'text-green-700', historyColor: 'text-green-600' },
-            'recyclable': { number: 2, label: 'Recyclable Waste', icon: '♻️', cardClass: 'bg-blue-100 border-blue-300', textClass: 'text-blue-700', historyColor: 'text-blue-600' },
-            'nonrecyclable': { number: 3, label: 'Non-Recyclable Waste', icon: '🗑️', cardClass: 'bg-gray-100 border-gray-300', textClass: 'text-gray-700', historyColor: 'text-gray-600' },
-            'hazardous': { number: 4, label: 'Hazardous Waste', icon: '☣️', cardClass: 'bg-red-100 border-red-400', textClass: 'text-red-700', historyColor: 'text-red-600' },
-            'biomedical': { number: 5, label: 'Biomedical Waste', icon: '💉', cardClass: 'bg-pink-100 border-pink-300', textClass: 'text-pink-700', historyColor: 'text-pink-600' },
-            'ewaste': { number: 6, label: 'E-waste', icon: '💻', cardClass: 'bg-purple-100 border-purple-300', textClass: 'text-purple-700', historyColor: 'text-purple-600' },
-        };
+        // --- Constants ---
+        // Your provided API Key
+        const apiKey = "AIzaSyAD4OtSfd38C_wzG6bbJ_z7GOi3SE6jw8A"; 
+        const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
         
-        // --- Realtime Database Functions (Replaces Firestore) ---
+        // Define waste configurations for display logic
+        const wasteConfigs = {
+            // Number 1: Biodegradable
+            'biodegradable': {
+                number: 1, label: 'Biodegradable Waste',
+                cardClass: 'bg-green-100 border-2 border-green-500',
+                iconClass: 'bg-green-600', textClass: 'text-green-800',
+                iconSvg: `<svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>`
+            },
+            // Number 2: Recyclable
+            'recyclable': {
+                number: 2, label: 'Recyclable Waste',
+                cardClass: 'bg-blue-100 border-2 border-blue-500',
+                iconClass: 'bg-blue-600', textClass: 'text-blue-800',
+                iconSvg: `<svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>`
+            },
+            // Number 3: Non-Recyclable
+            'nonrecyclable': {
+                number: 3, label: 'Non-Recyclable Waste',
+                cardClass: 'bg-yellow-100 border-2 border-yellow-500',
+                iconClass: 'bg-yellow-600', textClass: 'text-yellow-800',
+                iconSvg: `<svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>`
+            },
+            // Number 4: Hazardous Waste
+            'hazardous': {
+                number: 4, label: 'Hazardous Waste',
+                cardClass: 'bg-red-100 border-2 border-red-500',
+                iconClass: 'bg-red-600', textClass: 'text-red-800',
+                iconSvg: `<svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.3 16c-.77 1.333.192 3 1.732 3z" /></svg>`
+            },
+            // Number 5: Biomedical Waste
+            'biomedical': {
+                number: 5, label: 'Biomedical Waste',
+                cardClass: 'bg-purple-100 border-2 border-purple-500',
+                iconClass: 'bg-purple-600', textClass: 'text-purple-800',
+                iconSvg: `<svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`
+            },
+            // Number 6: E-waste
+            'ewaste': {
+                number: 6, label: 'E-waste',
+                cardClass: 'bg-gray-100 border-2 border-gray-500',
+                iconClass: 'bg-gray-600', textClass: 'text-gray-800',
+                iconSvg: `<svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1l-.75-3M3 10h18M5.25 10H19.5M6 4h12c1.657 0 3 1.343 3 3v4H3V7c0-1.657 1.343-3 3-3zM3 14h18" /></svg>`
+            },
+        };
 
+        // --- Firebase Functions ---
+
+        /**
+         * Safely parse environment variables and initialize Firebase Auth/DB.
+         */
         async function initFirebaseAndAuth() {
-            // Check if firebaseConfig is truly empty
-            if (Object.keys(firebaseConfig).length === 0) {
-                console.error("Firebase config is empty. History feature will be disabled.");
-                historyLoading.textContent = "History is unavailable: Missing Firebase configuration details.";
-                return;
+            setLogLevel('debug'); // Enable Firebase debug logging
+            const { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, getDatabase, setLogLevel } = window.FirebaseModules;
+
+            let firebaseConfig = {};
+            let isConfigAvailable = false;
+            
+            // 1. Attempt to parse environment config
+            if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+                try {
+                    firebaseConfig = JSON.parse(__firebase_config);
+                    isConfigAvailable = true;
+                } catch (e) {
+                    console.error("Error parsing __firebase_config:", e);
+                }
+            }
+
+            // 2. Fallback: If config is missing, use minimal config with the provided RTDB URL
+            // This is essential for the history feature to work in sandbox environments.
+            if (!isConfigAvailable) {
+                console.warn("Minimal Firebase config fallback active. History feature may be limited.");
+                firebaseConfig = {
+                    apiKey: "fake-api-key", 
+                    authDomain: "neurobin-60a06.firebaseapp.com",
+                    projectId: "neurobin-60a06",
+                    // NOTE: Hardcoded Realtime Database URL
+                    databaseURL: "https://neurobin-60a06-default-rtdb.asia-southeast1.firebasedatabase.app", 
+                    storageBucket: "neurobin-60a06.appspot.com",
+                    appId: "fake-app-id"
+                };
             }
             
-            try {
-                // Initialize app and Realtime Database
-                const app = initializeApp(firebaseConfig);
-                db = getDatabase(app); 
-                auth = getAuth(app);
-                
-                const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-                
-                onAuthStateChanged(auth, async (user) => {
-                    if (user) {
-                        userId = user.uid;
-                        userIdText.textContent = userId;
-                        userIdBanner.classList.remove('hidden');
-                        loadHistory();
-                    } else if (!user && !initialAuthToken) {
-                        await signInAnonymously(auth);
-                    }
-                });
-
-                if (initialAuthToken) {
-                    await signInWithCustomToken(auth, initialAuthToken);
-                } else if (!auth.currentUser) {
-                    await signInAnonymously(auth);
-                }
-
-            } catch (error) {
-                console.error("Firebase Initialization/Auth Error:", error);
-                historyLoading.textContent = "Error initializing history. Check console.";
+            // Check if the necessary database URL is present
+            if (!firebaseConfig.databaseURL) {
+                historyLoading.textContent = "History is unavailable: Missing Firebase databaseURL in configuration.";
+                return;
             }
+
+            // 3. Initialize App and Services
+            const app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            db = getDatabase(app);
+
+            // 4. Handle Authentication
+            let authAttempted = false;
+            onAuthStateChanged(auth, async (user) => {
+                if (user) {
+                    userId = user.uid;
+                    isAuthReady = true;
+                    // Only load history once authenticated and DB is ready
+                    if (!authAttempted) {
+                        loadHistory();
+                    }
+                } else if (!authAttempted) {
+                    // Try to sign in using custom token or anonymously
+                    try {
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                            await signInWithCustomToken(auth, __initial_auth_token);
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+                    } catch (e) {
+                        console.error("Firebase Auth Error:", e);
+                        historyLoading.textContent = "History is unavailable: Failed to authenticate with Firebase.";
+                        isAuthReady = true;
+                    }
+                }
+                authAttempted = true;
+            });
         }
         
-        // Function to get the Realtime DB path reference
-        function getHistoryPathRef() {
-            if (!db || !userId) {
-                console.error("Realtime DB or User ID is not available.");
-                return null;
-            }
-            // Path structure for private data in Realtime DB: /artifacts/{appId}/users/{userId}/waste_history
-            // appId is now sanitized
-            const historyPath = `artifacts/${appId}/users/${userId}/waste_history`;
-            return ref(db, historyPath);
+        /**
+         * Realtime Database path segment sanitation (required for RTDB keys)
+         * Replaces invalid characters with underscores.
+         */
+        function sanitizePathSegment(segment) {
+            if (!segment) return 'default';
+            // RTDB disallows '.', '#', '$', '[', or ']'
+            return segment.replace(/[.#$\[\]]/g, '_');
         }
 
-        async function saveHistoryItem(data) {
-            const historyRef = getHistoryPathRef();
-            if (!historyRef) return;
+        /**
+         * Gets the Realtime Database reference for the user's history path.
+         * The path is: /artifacts/{sanitized_appId}/users/{userId}/waste_history
+         */
+        function getHistoryPathRef() {
+            const { ref, child } = window.FirebaseModules;
+            if (!db || !isAuthReady) return null;
 
+            // Use the environment __app_id or a fallback, and sanitize it
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+            const sanitizedAppId = sanitizePathSegment(appId);
+            
+            // Use current user ID
+            const currentUserId = auth.currentUser?.uid || 'anonymous'; 
+
+            // Construct the path
+            const path = `artifacts/${sanitizedAppId}/users/${currentUserId}/waste_history`;
+            
+            return ref(db, path);
+        }
+
+        /**
+         * Saves a successful classification result to Realtime Database.
+         */
+        async function saveHistoryItem(data) {
+            const { push } = window.FirebaseModules;
             try {
-                // Use push() to generate a unique key for the new history item
+                const historyRef = getHistoryPathRef();
+                if (!historyRef) {
+                    console.error("Cannot save history: Database reference is not ready.");
+                    return;
+                }
+                
+                // Use push() to generate a unique ID and save the data
                 await push(historyRef, {
                     timestamp: Date.now(),
                     wasteType: data.waste_type,
                     disposalMethod: data.disposal_method,
                     reasoning: data.reasoning,
+                    confidence: data.confidence,
                 });
-                console.log("History item saved successfully to Realtime DB.");
             } catch (error) {
-                console.error("Error saving history item to Realtime DB:", error);
+                console.error("Error saving history to Realtime DB:", error);
             }
         }
 
+        /**
+         * Loads and displays history from Realtime Database using onValue for real-time updates.
+         */
         function loadHistory() {
+            const { onValue } = window.FirebaseModules;
             const historyRef = getHistoryPathRef();
-            if (!historyRef) return;
-            
-            // Listen for data changes
-            onValue(historyRef, (snapshot) => {
-                historyLoading.classList.add('hidden');
-                const items = [];
-                const data = snapshot.val(); // Get all data under the reference
-                
-                if (data) {
-                    // Realtime DB returns an object of objects, convert to array
-                    Object.keys(data).forEach(key => {
-                        items.push({ id: key, ...data[key] });
-                    });
-                }
-                
-                // Sort the items by timestamp in descending order (newest first)
-                items.sort((a, b) => b.timestamp - a.timestamp);
 
-                renderHistory(items);
-            }, (error) => {
-                console.error("Error loading history from Realtime DB:", error);
-                historyLoading.textContent = "Error loading history data from Realtime DB.";
-            });
-        }
-        
-        function renderHistory(items) {
-            historyList.innerHTML = ''; // Clear previous list
-            if (items.length === 0) {
-                historyEmpty.classList.remove('hidden');
+            if (!historyRef) {
+                historyLoading.textContent = "History is unavailable: Firebase not fully configured or user ID is missing.";
                 return;
             }
-            historyEmpty.classList.add('hidden');
 
-            items.forEach(item => {
-                const normalizedType = item.wasteType.toLowerCase().replace(/ waste/g, '').replace(/-/g, '').replace(/\s/g, '');
-                const config = wasteConfigs[normalizedType] || wasteConfigs['nonrecyclable'];
-                const date = new Date(item.timestamp).toLocaleDateString();
-                const time = new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-                const listItem = document.createElement('li');
-                listItem.className = `p-3 rounded-xl border-l-4 border-gray-200 ${config.cardClass}`;
-                listItem.innerHTML = `
-                    <div class="flex justify-between items-start">
-                        <div class="flex items-center">
-                            <span class="text-xl mr-3">${config.icon}</span>
-                            <div>
-                                <p class="font-semibold ${config.historyColor}">${config.label} <span class="text-xs text-gray-500 font-normal ml-1">#${config.number}</span></p>
-                                <p class="text-xs text-gray-400 mt-0.5">${date} at ${time}</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="mt-2 text-sm">
-                        <p class="font-medium text-gray-700">Disposal Path:</p>
-                        <p class="text-gray-600 italic ml-2 text-xs">${item.disposalMethod}</p>
-                    </div>
-                `;
-                historyList.appendChild(listItem);
+            // Real-time listener for the history data
+            onValue(historyRef, (snapshot) => {
+                historyList.innerHTML = '';
+                historyLoading.classList.add('hidden');
                 
-                // Simple transition effect for new items
-                setTimeout(() => {
-                    listItem.classList.remove('history-item-enter');
-                }, 10);
-                listItem.classList.add('history-item-enter', 'history-item-enter-active');
+                if (!snapshot.exists() || snapshot.val() === null) {
+                    historyList.innerHTML = `<p class="text-gray-500 text-center py-2">No classification history found yet.</p>`;
+                    return;
+                }
+
+                const historyData = snapshot.val();
+                // Convert object of objects to array of objects, reverse to show newest first
+                const items = Object.keys(historyData).map(key => ({
+                    id: key,
+                    ...historyData[key]
+                })).reverse(); 
+
+                items.forEach(item => {
+                    const date = new Date(item.timestamp).toLocaleString();
+                    const itemElement = document.createElement('div');
+                    itemElement.className = 'history-item p-3 hover:bg-gray-50 rounded-lg transition-colors';
+                    itemElement.innerHTML = `
+                        <p class="text-sm font-semibold text-gray-800">${item.wasteType}</p>
+                        <p class="text-xs text-gray-500 mb-1">${date}</p>
+                        <p class="text-xs text-indigo-600 font-medium">Path: ${item.disposalMethod}</p>
+                    `;
+                    historyList.appendChild(itemElement);
+                });
+            }, (error) => {
+                console.error("Realtime DB Read Error:", error);
+                historyLoading.classList.remove('hidden');
+                historyLoading.textContent = `Error loading history: ${error.message}`;
             });
         }
-        
-        // --- Event Listeners ---
+
+        // --- Event Listeners and Image Handling (omitted for brevity, assume unchanged) ---
+        // ... (All event listeners remain the same) ...
+
         dropZone.addEventListener('click', () => fileInput.click());
+        fileInputBtnMobile.addEventListener('click', () => fileInputMobile.click());
+
         dropZone.addEventListener('dragover', (e) => {
             e.preventDefault();
             dropZone.classList.add('drag-over');
@@ -462,26 +510,41 @@
                 handleFile(e.target.files[0]);
             }
         });
-        
+        fileInputMobile.addEventListener('change', (e) => {
+            if (e.target.files.length) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
         cameraBtn.addEventListener('click', startCamera);
         captureBtn.addEventListener('click', captureImage);
         cancelCameraBtn.addEventListener('click', stopCamera);
-        
+
         classifyBtn.addEventListener('click', classifyImage);
         removeBtn.addEventListener('click', resetUI);
         startOverBtn.addEventListener('click', resetUI);
         
+        // History Toggle
         historyHeader.addEventListener('click', () => {
-            const isHidden = historyContent.style.display === 'none';
-            historyContent.style.display = isHidden ? 'block' : 'none';
-            historyToggle.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
+            const isHidden = historyBody.classList.contains('h-0');
+            if (isHidden) {
+                historyBody.classList.remove('h-0', 'p-0', 'opacity-0');
+                historyBody.classList.add('py-4', 'px-4', 'opacity-100');
+                historyArrow.classList.remove('rotate-0');
+                historyArrow.classList.add('rotate-180');
+            } else {
+                historyBody.classList.add('h-0', 'p-0', 'opacity-0');
+                historyBody.classList.remove('py-4', 'px-4', 'opacity-100');
+                historyArrow.classList.add('rotate-0');
+                historyArrow.classList.remove('rotate-180');
+            }
         });
-
 
         // --- Camera Functions ---
         async function startCamera() {
             if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
                 try {
+                    // Requesting 'environment' (rear) camera on mobile
                     cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
                     cameraFeed.srcObject = cameraStream;
                     await cameraFeed.play();
@@ -505,7 +568,7 @@
             uploadSection.classList.remove('hidden');
             uploadSection.classList.add('fade-in');
         }
-        
+
         function captureImage() {
             cameraCanvas.width = cameraFeed.videoWidth;
             cameraCanvas.height = cameraFeed.videoHeight;
@@ -517,7 +580,8 @@
             showPreview();
         }
 
-        // --- Image Handling ---
+        // --- Image Handling & UI ---
+
         function resizeImage(file, maxWidth, maxHeight, quality) {
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
@@ -527,6 +591,7 @@
                         let width = img.width;
                         let height = img.height;
 
+                        // Calculate new dimensions to fit within maxWidth/maxHeight while preserving aspect ratio
                         if (width > height) {
                             if (width > maxWidth) {
                                 height *= maxWidth / width;
@@ -544,6 +609,7 @@
                         canvas.height = height;
                         const ctx = canvas.getContext('2d');
                         ctx.drawImage(img, 0, 0, width, height);
+                        // Resolve with the downscaled and compressed image Data URL
                         resolve(canvas.toDataURL('image/jpeg', quality));
                     };
                     img.onerror = reject;
@@ -560,6 +626,7 @@
                 return;
             }
             try {
+                // Resize image to keep API payload small and processing fast
                 const resizedDataUrl = await resizeImage(file, 512, 512, 0.9);
                 imagePreview.src = resizedDataUrl;
                 imageBase64 = resizedDataUrl.split(',')[1];
@@ -570,7 +637,6 @@
             }
         }
 
-        // --- UI Functions ---
         function showPreview() {
             uploadSection.classList.add('hidden');
             resultSection.classList.add('hidden');
@@ -588,11 +654,19 @@
             uploadSection.classList.remove('hidden');
             uploadSection.classList.add('fade-in');
             fileInput.value = '';
+            fileInputMobile.value = '';
             imageBase64 = null;
             imagePreview.src = '#';
             errorSection.classList.add('hidden');
         }
-        
+
+        function showError(message) {
+            errorSection.classList.remove('hidden');
+            errorMessage.textContent = message;
+            showLoading(false);
+            classifyBtn.textContent = 'Classify Waste';
+        }
+
         function showLoading(isLoading) {
             if(isLoading) {
                 previewSection.classList.add('hidden');
@@ -607,115 +681,122 @@
                 resultContent.classList.remove('hidden');
                 resultContent.classList.add('fade-in');
                 classifyBtn.disabled = false;
-                classifyBtn.textContent = 'Classify Waste';
             }
         }
-        
+
         function displayResult(data) {
             const wasteType = data.waste_type;
             const confidence = data.confidence;
             const reasoning = data.reasoning;
-            const disposalMethod = data.disposal_method; 
+            const disposalMethod = data.disposal_method;
 
-            // Normalize wasteType to match config keys
             const normalizedType = wasteType.toLowerCase().replace(/ waste/g, '').replace(/-/g, '').replace(/\s/g, '');
-            const config = wasteConfigs[normalizedType] || wasteConfigs['nonrecyclable']; 
+            const config = wasteConfigs[normalizedType] || wasteConfigs['nonrecyclable']; // Fallback to non-recyclable
 
-            // Update result display
+            // 1. Set result text and styling
             resultText.textContent = `${config.number}. ${config.label}`;
             confidenceScore.textContent = `${(confidence * 100).toFixed(1)}%`;
             reasoningText.textContent = reasoning;
             disposalMethodText.textContent = disposalMethod;
-            
-            // Apply dynamic styling
-            resultCard.className = `p-6 rounded-xl border ${config.cardClass}`;
-            resultIcon.className = `w-16 h-16 rounded-full flex items-center justify-center mr-4 bg-white shadow-md`;
-            resultIcon.innerHTML = `<span class="text-3xl">${config.icon}</span>`;
-            resultText.className = `text-2xl font-semibold ${config.textClass}`;
-            
+
+            // 2. Apply dynamic styling
+            resultCard.className = `p-6 rounded-xl shadow-lg ${config.cardClass}`;
+            resultIcon.className = `w-16 h-16 rounded-full flex items-center justify-center mr-4 shadow-lg ${config.iconClass}`;
+            resultText.className = `text-xl md:text-2xl font-semibold ${config.textClass}`;
+            resultIcon.innerHTML = config.iconSvg;
+
+            // 3. Save to History (if DB is ready)
+            if (db && auth.currentUser) {
+                saveHistoryItem(data);
+            }
+
+            // 4. Show results
             showLoading(false);
-            
-            // Save successful classification to history using Realtime DB
-            saveHistoryItem(data);
         }
 
-        function showError(message) {
-            errorMessage.textContent = message;
-            errorSection.classList.remove('hidden');
-            errorSection.classList.add('fade-in');
-            resultSection.classList.add('hidden');
-            previewSection.classList.add('hidden');
-            cameraView.classList.add('hidden');
-            loader.classList.add('hidden');
-            classifyBtn.disabled = false;
-            classifyBtn.textContent = 'Classify Waste';
-        }
-
-        // --- API Call ---
+        // --- Classification Logic ---
         async function classifyImage() {
             if (!imageBase64) {
-                showError("Please provide an image first.");
+                showError("No image selected. Please upload or capture an image.");
                 return;
             }
+            if (!apiKey) {
+                 showError("API Key is missing. Please set the 'apiKey' variable in the code.");
+                return;
+            }
+
             showLoading(true);
 
-            // IMPORTANT: The API key must be an empty string for the runtime to inject it.
-            const apiKey = ""; 
-            
-            const model = "gemini-2.5-flash-preview-05-20";
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+            // Detailed System Instruction and Prompt based on the six categories
+            const systemPrompt = `
+                You are an expert waste classification model. Your task is to analyze the provided image, identify the item, and classify it into one of the following six categories. You MUST provide the response in a JSON object with the specified schema.
 
-            const disposalGuidance = `
-Based on the classification, determine the single most 'Optimal Disposal Method'. Use the following guidelines strictly:
-1. Biodegradable Waste: Use 'Composting or Anaerobic Digestion (for biogas/fertilizer)'.
-2. Recyclable Waste (Paper, Glass, Metal, non-PVC/PS Plastics): Use 'Recycling at a municipal facility'.
-3. Non-Recyclable Waste (Contaminated or unrecyclable items): Use 'Landfill or Incineration with energy recovery'.
-4. Hazardous Waste (Batteries, Paint, Chemicals): Use 'Take to a designated Hazardous Waste Collection Center (Neutralization/Stabilization)'.
-5. Biomedical Waste (Infectious): Use 'Specialized Medical Waste Disposal (Autoclaving or Incineration)'.
-6. E-waste (Electronics, phones): Use 'Certified E-waste Recycler or Manufacturer Take-back Program'.
-`;
+                # Categories & Optimal Disposal Methods
+                1. Biodegradable Waste: (Food Waste, Garden Waste, Agricultural Waste)
+                   - Optimal Disposal Method: Composting or Anaerobic Digestion.
+                2. Recyclable Waste: (Paper, Cardboard, Glass, Metals, easily-recyclable Plastics like PET #1, HDPE #2)
+                   - Optimal Disposal Method: Mechanical Recycling at a municipal or certified facility.
+                3. Non-Recyclable Waste: (Contaminated materials, difficult-to-recycle materials like PVC #3, PS #6, complex multi-layer packaging)
+                   - Optimal Disposal Method: Landfilling or Incineration with energy recovery.
+                4. Hazardous Waste: (Paints, Solvents, Batteries, Pesticides, Corrosive/Flammable chemicals)
+                   - Optimal Disposal Method: Take to a designated Hazardous Waste Collection Center for stabilization, neutralization, or high-temperature incineration.
+                5. Biomedical Waste: (Syringes, bandages, expired medicines, pathological waste)
+                   - Optimal Disposal Method: Specialized treatment like Autoclaving (steam sterilization) or high-temperature Incineration by licensed disposal companies.
+                6. E-waste: (Computers, Phones, TVs, Cables)
+                   - Optimal Disposal Method: Handled by a certified E-waste Recycler for safe dismantling and recovery of valuable metals/toxic components.
 
-            const prompt = `Analyze the image and classify the waste into one of the following six categories: 'Biodegradable Waste', 'Recyclable Waste', 'Non-Recyclable Waste', 'Hazardous Waste', 'Biomedical Waste', or 'E-waste'. 
-${disposalGuidance}
-Respond ONLY with a valid JSON object containing 'waste_type', 'confidence', 'reasoning', and 'disposal_method' (which must be a string from the guidance above).`;
+                # Response Schema (MANDATORY)
+                {
+                    "waste_type": "[One of the six category names above, e.g., 'Recyclable Waste']",
+                    "disposal_method": "[The optimal disposal method corresponding to the chosen category, summarized from the list above]",
+                    "confidence": "[A float between 0.0 and 1.0 representing classification confidence]",
+                    "reasoning": "[A single, concise sentence explaining the classification based on the image content]"
+                }
+            `;
+
+            const userQuery = "Classify the waste item shown in the image and provide the optimal disposal method based on the provided categories. Only output the JSON object.";
 
             const payload = {
-                contents: [{
-                    parts: [
-                        { text: prompt },
-                        { inlineData: { mimeType: "image/jpeg", data: imageBase64 } }
-                    ]
-                }],
+                contents: [
+                    {
+                        role: "user",
+                        parts: [
+                            { text: userQuery },
+                            {
+                                inlineData: {
+                                    mimeType: "image/jpeg",
+                                    data: imageBase64
+                                }
+                            }
+                        ]
+                    }
+                ],
+                systemInstruction: {
+                    parts: [{ text: systemPrompt }]
+                },
                 generationConfig: {
                     responseMimeType: "application/json",
                     responseSchema: {
                         type: "OBJECT",
                         properties: {
-                            waste_type: { type: "STRING", description: "One of the six classification categories." },
-                            confidence: { type: "NUMBER", description: "A floating-point number between 0 and 1 representing classification certainty." },
-                            reasoning: { type: "STRING", description: "A brief, one-sentence explanation for the classification." },
-                            disposal_method: { type: "STRING", description: "The single optimal disposal method based on the provided guidance." } 
+                            "waste_type": { "type": "STRING", "description": "The category of waste." },
+                            "disposal_method": { "type": "STRING", "description": "The optimal disposal method for this waste type." },
+                            "confidence": { "type": "NUMBER", "description": "Confidence score from 0.0 to 1.0." },
+                            "reasoning": { "type": "STRING", "description": "A brief explanation for the classification." }
                         },
-                        required: ["waste_type", "confidence", "reasoning", "disposal_method"],
-                        propertyOrdering: ["waste_type", "confidence", "reasoning", "disposal_method"]
+                        "required": ["waste_type", "disposal_method", "confidence", "reasoning"]
                     }
-                },
+                }
             };
-            
+
             try {
-                const response = await fetchWithRetry(apiUrl, {
+                const response = await fetchWithRetry(API_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
-
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    let apiMessage = errorData.error?.message || 'API request failed with an unknown status.';
-                    throw new Error(apiMessage);
-                }
-
                 const result = await response.json();
+
                 const candidate = result.candidates?.[0];
 
                 if (candidate && candidate.content?.parts?.[0]?.text) {
@@ -723,7 +804,7 @@ Respond ONLY with a valid JSON object containing 'waste_type', 'confidence', 're
                     const parsedJson = JSON.parse(text);
                     displayResult(parsedJson);
                 } else {
-                    throw new Error("Invalid response structure or empty result from the API.");
+                    throw new Error("Invalid response structure or empty result from the API. Check API Key and Rate Limits.");
                 }
 
             } catch (error) {
@@ -731,7 +812,7 @@ Respond ONLY with a valid JSON object containing 'waste_type', 'confidence', 're
                 showError(error.message || "An unexpected error occurred. Please try again.");
             }
         }
-        
+
         // Helper function for exponential backoff
         async function fetchWithRetry(url, options, retries = 3, delay = 1000) {
             for (let i = 0; i < retries; i++) {
@@ -740,6 +821,11 @@ Respond ONLY with a valid JSON object containing 'waste_type', 'confidence', 're
                     if (response.status === 429 && i < retries - 1) {
                          throw new Error(`Rate limit exceeded, retrying in ${delay * Math.pow(2, i + 1) / 1000}s`);
                     }
+                    if (!response.ok) {
+                         // Throw error for other HTTP errors (400s, 500s)
+                         const errorBody = await response.text();
+                         throw new Error(`API Request Failed with status ${response.status}: ${errorBody.substring(0, 100)}...`);
+                    }
                     return response;
                 } catch (error) {
                     if (i === retries - 1) throw error;
@@ -747,7 +833,7 @@ Respond ONLY with a valid JSON object containing 'waste_type', 'confidence', 're
                 }
             }
         }
-        
+
         // --- Initialization ---
         window.onload = initFirebaseAndAuth;
 
