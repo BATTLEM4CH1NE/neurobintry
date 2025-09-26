@@ -217,6 +217,7 @@
         async function startCamera() {
             if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
                 try {
+                    // Requesting 'environment' (rear) camera on mobile
                     cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
                     cameraFeed.srcObject = cameraStream;
                     await cameraFeed.play();
@@ -389,7 +390,16 @@
             }
             showLoading(true);
 
-            const apiKey = "AIzaSyAD4OtSfd38C_wzG6bbJ_z7GOi3SE6jw8A"; 
+            // IMPORTANT: Replace 'YOUR_GEMINI_API_KEY_HERE' with your actual key.
+            // If the key is left as the placeholder, the app will show an error.
+            const apiKey = "YOUR_GEMINI_API_KEY_HERE"; 
+            
+            if (apiKey === "YOUR_GEMINI_API_KEY_HERE") {
+                showLoading(false);
+                showError("API Key is missing! Please replace 'YOUR_GEMINI_API_KEY_HERE' in the code with your actual Gemini API key.");
+                return;
+            }
+
             const model = "gemini-2.5-flash-preview-05-20";
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
@@ -415,8 +425,16 @@
                 });
 
                 if (!response.ok) {
+                    // Try to get the specific error from the API response body
                     const errorData = await response.json();
-                    throw new Error(errorData.error ? errorData.error.message : 'API request failed');
+                    let apiMessage = errorData.error?.message || 'API request failed with an unknown status.';
+                    
+                    // Specific check for the 'unregistered callers' error
+                    if (apiMessage.includes('unregistered callers')) {
+                         apiMessage = "Authentication Failed: Your API key is likely incorrect, missing, or revoked. Please double-check your key in the code and ensure it is valid.";
+                    }
+
+                    throw new Error(apiMessage);
                 }
 
                 const result = await response.json();
@@ -449,4 +467,3 @@
     </script>
 </body>
 </html>
-
