@@ -331,7 +331,6 @@
             }
 
             // 2. Fallback: If config is missing, use minimal config with the provided RTDB URL
-            // This is essential for the history feature to work in sandbox environments.
             if (!isConfigAvailable) {
                 console.warn("Minimal Firebase config fallback active. History feature may be limited.");
                 firebaseConfig = {
@@ -356,31 +355,38 @@
             auth = getAuth(app);
             db = getDatabase(app);
 
-            // 4. Handle Authentication
-            let authAttempted = false;
-            onAuthStateChanged(auth, async (user) => {
+            // 4. Handle Authentication directly (IMPROVED LOGIC)
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_token) {
+                    // Sign in with the provided custom token
+                    const userCredential = await signInWithCustomToken(auth, __initial_auth_token);
+                    console.log("Signed in with custom token. User ID:", userCredential.user.uid);
+                } else {
+                    // Fallback to anonymous sign-in if no token is available
+                    const userCredential = await signInAnonymously(auth);
+                    console.log("Signed in anonymously. User ID:", userCredential.user.uid);
+                }
+            } catch (e) {
+                // Display the error if authentication fails, but still mark as ready
+                console.error("Firebase Auth Initialization Error:", e);
+                historyLoading.textContent = "History is unavailable: Failed to authenticate with Firebase.";
+                isAuthReady = true; 
+                return; // Stop further initialization if auth fails
+            }
+
+            // 5. Set up Auth State Listener (To confirm user state and load history)
+            onAuthStateChanged(auth, (user) => {
+                // This listener confirms the user established in step 4 is present
                 if (user) {
                     userId = user.uid;
                     isAuthReady = true;
-                    // Only load history once authenticated and DB is ready
-                    if (!authAttempted) {
-                        loadHistory();
-                    }
-                } else if (!authAttempted) {
-                    // Try to sign in using custom token or anonymously
-                    try {
-                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                            await signInWithCustomToken(auth, __initial_auth_token);
-                        } else {
-                            await signInAnonymously(auth);
-                        }
-                    } catch (e) {
-                        console.error("Firebase Auth Error:", e);
-                        historyLoading.textContent = "History is unavailable: Failed to authenticate with Firebase.";
-                        isAuthReady = true;
-                    }
+                    console.log("Auth state confirmed. User ID:", userId);
+                    loadHistory(); // Load history after successful sign-in confirmation
+                } else {
+                    // Fallback if user somehow becomes unauthenticated after sign-in attempt
+                    isAuthReady = true; 
+                    console.warn("Auth state confirmed: No user found after attempt.");
                 }
-                authAttempted = true;
             });
         }
         
@@ -399,7 +405,7 @@
          * The path is: /artifacts/{sanitized_appId}/users/{userId}/waste_history
          */
         function getHistoryPathRef() {
-            const { ref, child } = window.FirebaseModules;
+            const { ref } = window.FirebaseModules;
             if (!db || !isAuthReady) return null;
 
             // Use the environment __app_id or a fallback, and sanitize it
