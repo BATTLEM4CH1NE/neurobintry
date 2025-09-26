@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!DOCTYPE ahtml>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -6,19 +6,6 @@
     <title>NeuroBin - Mobile Waste Classifier</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <!-- Firebase SDK Imports for Realtime Database and Auth -->
-    <script type="module">
-        // FIX: setLogLevel must be imported from firebase-app.js
-        import { initializeApp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getDatabase, ref, push, onValue, set, get, child } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
-
-        // Expose modules globally for access in the script below
-        window.FirebaseModules = {
-            initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged,
-            getDatabase, ref, push, onValue, set, get, child, setLogLevel
-        };
-    </script>
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -29,7 +16,7 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            padding-bottom: 2rem; /* space for history */
+            padding-bottom: 2rem;
         }
         .main-content {
             flex-grow: 1;
@@ -44,12 +31,27 @@
             transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out;
         }
         .drop-zone.drag-over {
-            background-color: #e0f2fe;
-            border-color: #38bdf8;
+            background-color: #f3f4f6;
+            border-color: #4f46e5;
+        }
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 255, 255, 0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .loading-overlay.visible {
+            display: flex;
         }
         .loader {
-            border: 4px solid #f3f4f6;
-            border-top: 4px solid #3b82f6;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #4f46e5;
             border-radius: 50%;
             width: 40px;
             height: 40px;
@@ -59,793 +61,539 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
+        .card {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
         }
-        .fade-in {
-            animation: fadeIn 0.5s ease-out forwards;
-        }
-        #camera-feed {
-            width: 100%;
-            height: auto;
-            border-radius: 0.5rem;
-        }
-        #camera-canvas {
-            display: none;
-        }
-        .history-item:not(:last-child) {
-            border-bottom: 1px solid #e5e7eb;
+        .waste-type-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.75rem;
         }
     </style>
 </head>
 <body class="bg-gray-50">
-
-    <div class="app-container">
-        <!-- App Header -->
-        <header class="bg-white shadow-md w-full">
-            <nav class="container mx-auto px-4 py-3 flex items-center">
-                <div class="flex items-center space-x-2">
-                    <svg class="w-8 h-8 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M14.25 9.75L16.5 12l-2.25 2.25m-4.5 0L7.5 12l2.25-2.25M6 20.25h12A2.25 2.25 0 0020.25 18V6A2.25 2.25 0 0018 3.75H6A2.25 2.25 0 003.75 6v12A2.25 2.25 0 006 20.25z" />
-                    </svg>
-                    <h1 class="text-xl font-bold text-gray-800">NeuroBin</h1>
-                </div>
-            </nav>
+    <div class="app-container max-w-xl mx-auto">
+        
+        <!-- Header -->
+        <header class="w-full p-4 bg-white shadow-md rounded-b-xl mb-4">
+            <h1 class="text-3xl font-bold text-gray-900 text-center">NeuroBin ♻️</h1>
+            <p class="text-center text-sm text-gray-600 mt-1">Mobile Waste Classifier</p>
         </header>
 
         <!-- Main Content Area -->
-        <main class="main-content">
-            <div class="w-full max-w-lg mx-auto bg-white rounded-2xl shadow-xl p-6 md:p-8 mt-4">
-                <!-- Image Upload Section -->
-                <div id="upload-section" class="fade-in">
-                    <header class="text-center mb-6">
-                        <h2 class="text-2xl md:text-3xl font-bold text-gray-800">Classify Waste</h2>
-                        <p class="text-gray-500 mt-2">Upload a photo or use your camera to start.</p>
-                    </header>
-
-                    <!-- Waste Category Key -->
-                    <div class="mb-6 p-4 bg-indigo-50 rounded-lg">
-                        <h3 class="text-lg font-semibold text-indigo-700 mb-2">Waste Categories Key:</h3>
-                        <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-gray-700">
-                            <p><strong>1.</strong> Biodegradable Waste</p>
-                            <p><strong>4.</strong> Hazardous Waste</p>
-                            <p><strong>2.</strong> Recyclable Waste</p>
-                            <p><strong>5.</strong> Biomedical Waste</p>
-                            <p><strong>3.</strong> Non-Recyclable Waste</p>
-                            <p><strong>6.</strong> E-waste</p>
-                        </div>
+        <div class="main-content">
+            <div class="w-full">
+                
+                <!-- Classification Card -->
+                <div id="classification-card" class="bg-white p-6 rounded-xl card transition-all duration-300">
+                    <h2 class="text-xl font-semibold mb-4 text-gray-800">1. Upload Item for Classification</h2>
+                    
+                    <!-- Drop Zone / File Input -->
+                    <div id="drop-zone" class="drop-zone p-8 text-center cursor-pointer rounded-xl mb-4 hover:border-indigo-500 hover:bg-indigo-50">
+                        <input type="file" id="file-input" accept="image/*" class="hidden">
+                        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.885-3.376M14 16h2a4 4 0 004-4v-4m-12 12l-4-4m4 4l4-4m-4 4V7m4 4l4-4m-4 4l-4-4"></path></svg>
+                        <p class="mt-2 text-sm text-gray-600">Drag & drop or <span class="text-indigo-600 font-medium">click to browse</span></p>
+                        <p class="text-xs text-gray-500">PNG, JPG, up to 4MB</p>
                     </div>
 
-                    <div id="drop-zone" class="drop-zone w-full p-8 text-center rounded-xl cursor-pointer bg-gray-50 hover:bg-gray-100 hidden md:block">
-                        <input type="file" id="file-input" class="hidden" accept="image/*">
-                        <div class="flex flex-col items-center">
-                             <svg class="w-12 h-12 text-gray-400 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l-3 3m3-3l3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" /></svg>
-                             <p class="text-gray-600 font-medium">Drag & drop an image here</p>
-                             <p class="text-gray-500 my-1">or</p>
-                             <p class="font-semibold text-indigo-600">Click to Select File</p>
-                        </div>
-                    </div>
-                    <div class="mt-4 text-center md:mt-0">
-                        <button id="camera-btn" class="w-full bg-indigo-800 text-white font-bold py-3 px-6 rounded-lg hover:bg-indigo-900 transition-colors flex items-center justify-center gap-2">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                            Use Camera
-                        </button>
-                        <input type="file" id="file-input-mobile" class="hidden" accept="image/*">
-                        <button id="file-input-btn-mobile" class="w-full bg-gray-200 text-gray-700 font-medium py-3 px-6 rounded-lg hover:bg-gray-300 transition-colors mt-3 block md:hidden">
-                            Select File
+                    <!-- Image Preview Area -->
+                    <div id="image-preview-container" class="hidden mb-4 relative rounded-lg overflow-hidden">
+                        <img id="image-preview" class="w-full h-48 object-cover object-center" alt="Image Preview">
+                        <button onclick="resetApp()" class="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full shadow-lg hover:bg-red-600 transition duration-150">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                         </button>
                     </div>
+
+                    <!-- Classification Button -->
+                    <button id="classify-button" class="w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold hover:bg-indigo-700 transition duration-150 shadow-md shadow-indigo-200 disabled:opacity-50" disabled>
+                        Classify Waste Item
+                    </button>
+                    
+                    <!-- Status/Error Message -->
+                    <p id="status-message" class="mt-3 text-center text-sm font-medium hidden"></p>
+
                 </div>
 
-                <!-- Camera View -->
-                <div id="camera-view" class="hidden">
-                    <video id="camera-feed" playsinline></video>
-                    <canvas id="camera-canvas" class="hidden"></canvas>
-                    <div class="mt-4 flex flex-col sm:flex-row gap-3 justify-center">
-                        <button id="capture-btn" class="w-full sm:w-auto bg-red-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-red-700 transition-colors">Take Photo</button>
-                        <button id="cancel-camera-btn" class="w-full sm:w-auto bg-gray-200 text-gray-700 font-medium py-3 px-6 rounded-lg hover:bg-gray-300">Cancel</button>
-                    </div>
-                </div>
-
-                <!-- Image Preview Section -->
-                <div id="preview-section" class="hidden text-center">
-                    <img id="image-preview" src="#" alt="Image preview" class="max-w-full max-h-72 mx-auto rounded-lg shadow-md">
-                    <div class="mt-6 flex flex-col sm:flex-row gap-3 justify-center">
-                        <button id="classify-btn" class="w-full sm:w-auto bg-blue-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 disabled:bg-gray-400">
-                            Classify Waste
-                        </button>
-                        <button id="remove-btn" class="w-full sm:w-auto bg-gray-200 text-gray-700 font-medium py-3 px-6 rounded-lg hover:bg-gray-300 transition-colors">
-                            Change Image
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Result Section -->
-                <div id="result-section" class="hidden">
-                    <div id="loader" class="hidden mx-auto loader"></div>
-                    <div id="result-content" class="hidden">
-                        <h2 class="text-2xl font-bold text-center text-gray-800 mb-4">Classification Result</h2>
-                        <div id="result-card" class="p-6 rounded-xl">
-                            <div class="flex items-center justify-center">
-                                <div id="result-icon" class="w-16 h-16 rounded-full flex items-center justify-center mr-4 shadow-lg"></div>
-                                <p id="result-text" class="text-xl md:text-2xl font-semibold"></p>
-                            </div>
-                            <div class="mt-4 text-center">
-                                <p class="text-gray-700 font-medium">Confidence: <span id="confidence-score" class="font-bold"></span></p>
-                                <!-- Optimal Disposal Method -->
-                                <div id="disposal-info" class="mt-4 p-3 bg-white rounded-lg border border-dashed border-indigo-300">
-                                    <p class="text-sm font-semibold text-gray-700 mb-1">Optimal Disposal Method:</p>
-                                    <p id="disposal-method-text" class="text-base font-bold text-indigo-600"></p>
-                                </div>
-                                <!-- Reasoning -->
-                                <p class="text-gray-600 mt-4 text-sm italic">"<span id="reasoning-text"></span>"</p>
-                            </div>
+                <!-- Result Card -->
+                <div id="result-card" class="bg-white p-6 rounded-xl card mt-6 hidden">
+                    <h2 class="text-xl font-semibold mb-4 text-gray-800">2. Classification Result</h2>
+                    <div class="space-y-4">
+                        <div class="flex justify-between items-center border-b pb-2">
+                            <span class="text-gray-600 font-medium">Type:</span>
+                            <span id="result-type" class="waste-type-badge bg-green-100 text-green-800"></span>
                         </div>
-                        <div class="text-center mt-6">
-                             <button id="start-over-btn" class="w-full sm:w-auto bg-blue-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-blue-700 transition-colors">Classify Another Item</button>
+                        <div class="border-b pb-2">
+                            <span class="text-gray-600 font-medium block mb-1">How to Dispose:</span>
+                            <p id="result-disposal" class="text-gray-800 text-sm"></p>
+                        </div>
+                        <div>
+                            <span class="text-gray-600 font-medium block mb-1">Environmental Tip:</span>
+                            <p id="result-tip" class="text-gray-800 text-sm italic"></p>
                         </div>
                     </div>
                 </div>
 
-                <!-- Error Section -->
-                <div id="error-section" class="hidden mt-6 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg" role="alert">
-                    <strong class="font-bold">Error:</strong>
-                    <span class="block sm:inline" id="error-message"></span>
+                <!-- History Section -->
+                <div id="history-container" class="w-full mt-6">
+                    <h2 class="text-xl font-semibold mb-4 text-gray-800">3. Classification History (User ID: <span id="user-id-display" class="font-mono text-sm bg-gray-200 px-2 py-0.5 rounded">...</span>)</h2>
+                    <div id="history-list" class="space-y-3">
+                        <!-- History items will be inserted here -->
+                        <p id="loading-history" class="text-center text-gray-500">Loading history...</p>
+                    </div>
+                    <p id="empty-history" class="text-center text-gray-500 mt-4 hidden">No classification history found yet!</p>
                 </div>
+
             </div>
-        </main>
+        </div>
+        
+        <!-- Loading Overlay -->
+        <div id="loading-overlay" class="loading-overlay">
+            <div class="loader"></div>
+        </div>
 
-        <!-- History Section -->
-        <section class="w-full max-w-lg mx-auto px-4 mt-6">
-            <div id="history-header" class="bg-gray-100 p-4 rounded-t-xl cursor-pointer flex justify-between items-center shadow-md">
-                <h3 class="text-lg font-bold text-gray-800">
-                    <svg class="w-6 h-6 inline-block mr-2 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    Classification History
-                </h3>
-                <svg id="history-arrow" class="w-6 h-6 text-gray-600 transform transition-transform duration-300 rotate-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
+        <!-- Custom Error Modal (Used instead of alert()) -->
+        <div id="error-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-[2000]">
+            <div class="bg-white p-6 rounded-xl shadow-2xl max-w-sm w-11/12">
+                <h3 class="text-xl font-bold text-red-600 mb-3">Error</h3>
+                <p id="error-modal-message" class="text-gray-700 mb-4"></p>
+                <button onclick="document.getElementById('error-modal').classList.add('hidden')" class="w-full bg-red-600 text-white py-2 rounded-lg font-semibold hover:bg-red-700 transition">Close</button>
             </div>
-            <!-- HISTORY BODY MODIFIED: ADDED h-0, p-0, opacity-0 TO START COLLAPSED -->
-            <div id="history-body" class="bg-white rounded-b-xl shadow-xl h-0 p-0 opacity-0 transition-all duration-300 overflow-hidden border border-gray-200">
-                <div id="history-list" class="space-y-3">
-                    <p id="history-loading" class="text-gray-500 text-center">Loading history...</p>
-                </div>
-            </div>
-        </section>
+        </div>
     </div>
 
-    <script>
+    <script type="module">
+        // --- Firebase Imports ---
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { 
+            getAuth, 
+            signInAnonymously, 
+            signInWithCustomToken, 
+            onAuthStateChanged 
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { 
+            getFirestore, 
+            doc, 
+            addDoc, 
+            onSnapshot, 
+            collection, 
+            query, 
+            serverTimestamp 
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"; // Removed unused 'orderBy'
+        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+
+        // Set Firebase debug log level
+        setLogLevel('Debug');
+        
         // --- Global Variables ---
-        let db = null;
-        let auth = null;
-        let userId = 'unknown'; // Will be set after auth
-        let isAuthReady = false;
-        let imageBase64 = null;
-        let cameraStream = null;
+        let app, db, auth, userId;
+        let selectedFile = null;
 
-        // --- DOM Elements ---
-        const dropZone = document.getElementById('drop-zone');
-        const fileInput = document.getElementById('file-input');
-        const fileInputMobile = document.getElementById('file-input-mobile');
-        const fileInputBtnMobile = document.getElementById('file-input-btn-mobile');
-        const uploadSection = document.getElementById('upload-section');
-        const cameraBtn = document.getElementById('camera-btn');
-        const cameraView = document.getElementById('camera-view');
-        const cameraFeed = document.getElementById('camera-feed');
-        const cameraCanvas = document.getElementById('camera-canvas');
-        const captureBtn = document.getElementById('capture-btn');
-        const cancelCameraBtn = document.getElementById('cancel-camera-btn');
-        const previewSection = document.getElementById('preview-section');
-        const imagePreview = document.getElementById('image-preview');
-        const classifyBtn = document.getElementById('classify-btn');
-        const removeBtn = document.getElementById('remove-btn');
-        const resultSection = document.getElementById('result-section');
-        const loader = document.getElementById('loader');
-        const resultContent = document.getElementById('result-content');
-        const resultCard = document.getElementById('result-card');
-        const resultIcon = document.getElementById('result-icon');
-        const resultText = document.getElementById('result-text');
-        const confidenceScore = document.getElementById('confidence-score');
-        const reasoningText = document.getElementById('reasoning-text');
-        const startOverBtn = document.getElementById('start-over-btn');
-        const errorSection = document.getElementById('error-section');
-        const errorMessage = document.getElementById('error-message');
-        const disposalMethodText = document.getElementById('disposal-method-text');
-        const historyList = document.getElementById('history-list');
-        const historyLoading = document.getElementById('history-loading');
-        const historyHeader = document.getElementById('history-header');
-        const historyBody = document.getElementById('history-body');
-        const historyArrow = document.getElementById('history-arrow');
+        // Global variables provided by the environment
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        const LLM_API_KEY = ""; // Empty string for Canvas environment API Key handling
 
-        // --- Constants ---
-        // Your provided API Key
-        const apiKey = "AIzaSyAD4OtSfd38C_wzG6bbJ_z7GOi3SE6jw8A"; 
-        const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
-        
-        // Define waste configurations for display logic
-        const wasteConfigs = {
-            // Number 1: Biodegradable
-            'biodegradable': {
-                number: 1, label: 'Biodegradable Waste',
-                cardClass: 'bg-green-100 border-2 border-green-500',
-                iconClass: 'bg-green-600', textClass: 'text-green-800',
-                iconSvg: `<svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>`
-            },
-            // Number 2: Recyclable
-            'recyclable': {
-                number: 2, label: 'Recyclable Waste',
-                cardClass: 'bg-blue-100 border-2 border-blue-500',
-                iconClass: 'bg-blue-600', textClass: 'text-blue-800',
-                iconSvg: `<svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>`
-            },
-            // Number 3: Non-Recyclable
-            'nonrecyclable': {
-                number: 3, label: 'Non-Recyclable Waste',
-                cardClass: 'bg-yellow-100 border-2 border-yellow-500',
-                iconClass: 'bg-yellow-600', textClass: 'text-yellow-800',
-                iconSvg: `<svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>`
-            },
-            // Number 4: Hazardous Waste
-            'hazardous': {
-                number: 4, label: 'Hazardous Waste',
-                cardClass: 'bg-red-100 border-2 border-red-500',
-                iconClass: 'bg-red-600', textClass: 'text-red-800',
-                iconSvg: `<svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.3 16c-.77 1.333.192 3 1.732 3z" /></svg>`
-            },
-            // Number 5: Biomedical Waste
-            'biomedical': {
-                number: 5, label: 'Biomedical Waste',
-                cardClass: 'bg-purple-100 border-2 border-purple-500',
-                iconClass: 'bg-purple-600', textClass: 'text-purple-800',
-                iconSvg: `<svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`
-            },
-            // Number 6: E-waste
-            'ewaste': {
-                number: 6, label: 'E-waste',
-                cardClass: 'bg-gray-100 border-2 border-gray-500',
-                iconClass: 'bg-gray-600', textClass: 'text-gray-800',
-                iconSvg: `<svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1l-.75-3M3 10h18M5.25 10H19.5M6 4h12c1.657 0 3 1.343 3 3v4H3V7c0-1.657 1.343-3 3-3zM3 14h18" /></svg>`
-            },
-        };
+        // --- Utility Functions ---
 
-        // --- Firebase Functions ---
-
-        /**
-         * Safely parse environment variables and initialize Firebase Auth/DB.
-         */
-        async function initFirebaseAndAuth() {
-            const { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, getDatabase, setLogLevel } = window.FirebaseModules;
-            setLogLevel('debug'); // Enable Firebase debug logging
-
-            let firebaseConfig = {};
-            let isConfigAvailable = false;
-            
-            // 1. Attempt to parse environment config
-            if (typeof __firebase_config !== 'undefined' && __firebase_config) {
-                try {
-                    firebaseConfig = JSON.parse(__firebase_config);
-                    isConfigAvailable = true;
-                } catch (e) {
-                    console.error("Error parsing __firebase_config:", e);
-                }
-            }
-
-            // 2. Fallback: If config is missing, use minimal config with the provided RTDB URL
-            if (!isConfigAvailable) {
-                console.warn("Minimal Firebase config fallback active. History feature may be limited.");
-                firebaseConfig = {
-                    apiKey: "fake-api-key", 
-                    authDomain: "neurobin-60a06.firebaseapp.com",
-                    projectId: "neurobin-60a06",
-                    // NOTE: Hardcoded Realtime Database URL
-                    databaseURL: "https://neurobin-60a06-default-rtdb.asia-southeast1.firebasedatabase.app", 
-                    storageBucket: "neurobin-60a06.appspot.com",
-                    appId: "fake-app-id"
-                };
-            }
-            
-            // Check if the necessary database URL is present
-            if (!firebaseConfig.databaseURL) {
-                historyLoading.textContent = "History is unavailable: Missing Firebase databaseURL in configuration.";
-                return;
-            }
-
-            // 3. Initialize App and Services
-            const app = initializeApp(firebaseConfig);
-            auth = getAuth(app);
-            db = getDatabase(app);
-
-            // 4. Handle Authentication directly (IMPROVED LOGIC)
-            try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_token) {
-                    // Sign in with the provided custom token
-                    const userCredential = await signInWithCustomToken(auth, __initial_auth_token);
-                    console.log("Signed in with custom token. User ID:", userCredential.user.uid);
-                } else {
-                    // Fallback to anonymous sign-in if no token is available
-                    const userCredential = await signInAnonymously(auth);
-                    console.log("Signed in anonymously. User ID:", userCredential.user.uid);
-                }
-            } catch (e) {
-                // Display the error if authentication fails, but still mark as ready
-                console.error("Firebase Auth Initialization Error:", e);
-                historyLoading.textContent = "History is unavailable: Failed to authenticate with Firebase.";
-                isAuthReady = true; 
-                return; // Stop further initialization if auth fails
-            }
-
-            // 5. Set up Auth State Listener (To confirm user state and load history)
-            onAuthStateChanged(auth, (user) => {
-                // This listener confirms the user established in step 4 is present
-                if (user) {
-                    userId = user.uid;
-                    isAuthReady = true;
-                    console.log("Auth state confirmed. User ID:", userId);
-                    loadHistory(); // Load history after successful sign-in confirmation
-                } else {
-                    // Fallback if user somehow becomes unauthenticated after sign-in attempt
-                    isAuthReady = true; 
-                    console.warn("Auth state confirmed: No user found after attempt.");
-                }
-            });
-        }
-        
-        /**
-         * Realtime Database path segment sanitation (required for RTDB keys)
-         * Replaces invalid characters with underscores.
-         */
-        function sanitizePathSegment(segment) {
-            if (!segment) return 'default';
-            // RTDB disallows '.', '#', '$', '[', or ']'
-            return segment.replace(/[.#$\[\]]/g, '_');
+        /** Shows a custom error modal */
+        function showError(message) {
+            const modal = document.getElementById('error-modal');
+            document.getElementById('error-modal-message').textContent = message;
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
         }
 
-        /**
-         * Gets the Realtime Database reference for the user's history path.
-         * The path is: /artifacts/{sanitized_appId}/users/{userId}/waste_history
-         */
-        function getHistoryPathRef() {
-            const { ref } = window.FirebaseModules;
-            if (!db || !isAuthReady) return null;
-
-            // Use the environment __app_id or a fallback, and sanitize it
-            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-            const sanitizedAppId = sanitizePathSegment(appId);
-            
-            // Use current user ID
-            const currentUserId = auth.currentUser?.uid || 'anonymous'; 
-
-            // Construct the path
-            const path = `artifacts/${sanitizedAppId}/users/${currentUserId}/waste_history`;
-            
-            return ref(db, path);
-        }
-
-        /**
-         * Saves a successful classification result to Realtime Database.
-         */
-        async function saveHistoryItem(data) {
-            const { push } = window.FirebaseModules;
-            try {
-                const historyRef = getHistoryPathRef();
-                if (!historyRef) {
-                    console.error("Cannot save history: Database reference is not ready.");
-                    return;
-                }
-                
-                // Use push() to generate a unique ID and save the data
-                await push(historyRef, {
-                    timestamp: Date.now(),
-                    wasteType: data.waste_type,
-                    disposalMethod: data.disposal_method,
-                    reasoning: data.reasoning,
-                    confidence: data.confidence,
-                });
-            } catch (error) {
-                console.error("Error saving history to Realtime DB:", error);
-            }
-        }
-
-        /**
-         * Loads and displays history from Realtime Database using onValue for real-time updates.
-         */
-        function loadHistory() {
-            const { onValue } = window.FirebaseModules;
-            const historyRef = getHistoryPathRef();
-
-            if (!historyRef) {
-                historyLoading.textContent = "History is unavailable: Firebase not fully configured or user ID is missing.";
-                return;
-            }
-
-            // Real-time listener for the history data
-            onValue(historyRef, (snapshot) => {
-                // DEBUGGING: Log to confirm data is received from the database
-                console.log("History listener fired. Data received:", snapshot.val()); 
-
-                historyList.innerHTML = '';
-                historyLoading.classList.add('hidden');
-                
-                if (!snapshot.exists() || snapshot.val() === null) {
-                    historyList.innerHTML = `<p class="text-gray-500 text-center py-2">No classification history found yet.</p>`;
-                    return;
-                }
-
-                const historyData = snapshot.val();
-                // Convert object of objects to array of objects, reverse to show newest first
-                const items = Object.keys(historyData).map(key => ({
-                    id: key,
-                    ...historyData[key]
-                })).reverse(); 
-
-                items.forEach(item => {
-                    const date = new Date(item.timestamp).toLocaleString();
-                    const itemElement = document.createElement('div');
-                    itemElement.className = 'history-item p-3 hover:bg-gray-50 rounded-lg transition-colors';
-                    itemElement.innerHTML = `
-                        <p class="text-sm font-semibold text-gray-800">${item.wasteType}</p>
-                        <p class="text-xs text-gray-500 mb-1">${date}</p>
-                        <p class="text-xs text-indigo-600 font-medium">Path: ${item.disposalMethod}</p>
-                    `;
-                    historyList.appendChild(itemElement);
-                });
-            }, (error) => {
-                console.error("Realtime DB Read Error:", error);
-                historyLoading.classList.remove('hidden');
-                historyLoading.textContent = `Error loading history: ${error.message}`;
-            });
-        }
-
-        // --- Event Listeners and Image Handling ---
-
-        dropZone.addEventListener('click', () => fileInput.click());
-        fileInputBtnMobile.addEventListener('click', () => fileInputMobile.click());
-
-        dropZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dropZone.classList.add('drag-over');
-        });
-        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
-        dropZone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            dropZone.classList.remove('drag-over');
-            const files = e.dataTransfer.files;
-            if (files.length) {
-                handleFile(files[0]);
-            }
-        });
-        fileInput.addEventListener('change', (e) => {
-            if (e.target.files.length) {
-                handleFile(e.target.files[0]);
-            }
-        });
-        fileInputMobile.addEventListener('change', (e) => {
-            if (e.target.files.length) {
-                handleFile(e.target.files[0]);
-            }
-        });
-
-        cameraBtn.addEventListener('click', startCamera);
-        captureBtn.addEventListener('click', captureImage);
-        cancelCameraBtn.addEventListener('click', stopCamera);
-
-        classifyBtn.addEventListener('click', classifyImage);
-        removeBtn.addEventListener('click', resetUI);
-        startOverBtn.addEventListener('click', resetUI);
-        
-        // History Toggle
-        historyHeader.addEventListener('click', () => {
-            const isHidden = historyBody.classList.contains('h-0');
-            if (isHidden) {
-                // OPEN: remove collapse classes, add padding/opacity
-                historyBody.classList.remove('h-0', 'p-0', 'opacity-0');
-                historyBody.classList.add('py-4', 'px-4', 'opacity-100'); 
-                historyArrow.classList.remove('rotate-0');
-                historyArrow.classList.add('rotate-180');
+        /** Shows or hides the loading overlay */
+        function setLoading(isLoading) {
+            const overlay = document.getElementById('loading-overlay');
+            if (isLoading) {
+                overlay.classList.add('visible');
             } else {
-                // CLOSE: add collapse classes, remove padding/opacity
-                historyBody.classList.add('h-0', 'p-0', 'opacity-0');
-                historyBody.classList.remove('py-4', 'px-4', 'opacity-100'); 
-                historyArrow.classList.add('rotate-0');
-                historyArrow.classList.remove('rotate-180');
-            }
-        });
-
-        // --- Camera Functions ---
-        async function startCamera() {
-            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-                try {
-                    // Requesting 'environment' (rear) camera on mobile
-                    cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-                    cameraFeed.srcObject = cameraStream;
-                    await cameraFeed.play();
-                    uploadSection.classList.add('hidden');
-                    cameraView.classList.remove('hidden');
-                    cameraView.classList.add('fade-in');
-                } catch (err) {
-                    console.error("Error accessing camera: ", err);
-                    showError("Could not access the camera. Please ensure you have given permission.");
-                }
-            } else {
-                showError("Your browser does not support camera access.");
+                overlay.classList.remove('visible');
             }
         }
 
-        function stopCamera() {
-            if (cameraStream) {
-                cameraStream.getTracks().forEach(track => track.stop());
-            }
-            cameraView.classList.add('hidden');
-            uploadSection.classList.remove('hidden');
-            uploadSection.classList.add('fade-in');
-        }
-
-        function captureImage() {
-            cameraCanvas.width = cameraFeed.videoWidth;
-            cameraCanvas.height = cameraFeed.videoHeight;
-            cameraCanvas.getContext('2d').drawImage(cameraFeed, 0, 0, cameraCanvas.width, cameraCanvas.height);
-            const dataUrl = cameraCanvas.toDataURL('image/jpeg', 0.9);
-            imagePreview.src = dataUrl;
-            imageBase64 = dataUrl.split(',')[1];
-            stopCamera();
-            showPreview();
-        }
-
-        // --- Image Handling & UI ---
-
-        function resizeImage(file, maxWidth, maxHeight, quality) {
+        /** Converts a File object to a base64 string */
+        function fileToBase64(file) {
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
-                reader.onload = (e) => {
-                    const img = new Image();
-                    img.onload = () => {
-                        let width = img.width;
-                        let height = img.height;
-
-                        // Calculate new dimensions to fit within maxWidth/maxHeight while preserving aspect ratio
-                        if (width > height) {
-                            if (width > maxWidth) {
-                                height *= maxWidth / width;
-                                width = maxWidth;
-                            }
-                        } else {
-                            if (height > maxHeight) {
-                                width *= maxHeight / height;
-                                height = maxHeight;
-                            }
-                        }
-
-                        const canvas = document.createElement('canvas');
-                        canvas.width = width;
-                        canvas.height = height;
-                        const ctx = canvas.getContext('2d');
-                        ctx.drawImage(img, 0, 0, width, height);
-                        // Resolve with the downscaled and compressed image Data URL
-                        resolve(canvas.toDataURL('image/jpeg', quality));
-                    };
-                    img.onerror = reject;
-                    img.src = e.target.result;
+                reader.onload = () => {
+                    // Extract only the base64 data part (after the comma)
+                    const base64Data = reader.result.split(',')[1];
+                    resolve(base64Data);
                 };
-                reader.onerror = reject;
+                reader.onerror = error => reject(error);
                 reader.readAsDataURL(file);
             });
         }
-
-        async function handleFile(file) {
-            if (!file.type.startsWith('image/')) {
-                showError("Please upload a valid image file.");
+        
+        // --- Core Application Logic ---
+        
+        /** Initializes Firebase and authenticates the user */
+        async function initFirebaseAndAuth() {
+            if (!firebaseConfig) {
+                showError("Firebase configuration is missing. Cannot initialize the app.");
                 return;
             }
+
             try {
-                // Resize image to keep API payload small and processing fast
-                const resizedDataUrl = await resizeImage(file, 512, 512, 0.9);
-                imagePreview.src = resizedDataUrl;
-                imageBase64 = resizedDataUrl.split(',')[1];
-                showPreview();
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                
+                // Sign in with the provided token or anonymously
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                // Listen for auth state changes to set the user ID and start history listener
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        document.getElementById('user-id-display').textContent = userId;
+                        // Once authenticated, start listening to history
+                        setupHistoryListener();
+                    } else {
+                        // This case should ideally not happen if signInAnonymously is successful
+                        userId = 'unauthenticated';
+                        document.getElementById('user-id-display').textContent = userId;
+                        showError("Failed to authenticate user. History will not be saved.");
+                    }
+                    setupEventListeners();
+                });
             } catch (error) {
-                console.error("Error processing image:", error);
-                showError("Could not process the selected image file.");
+                console.error("Firebase Initialization Error:", error);
+                showError(`Firebase setup failed: ${error.message}. Please check your configuration.`);
             }
         }
 
-        function showPreview() {
-            uploadSection.classList.add('hidden');
-            resultSection.classList.add('hidden');
-            cameraView.classList.add('hidden');
-            previewSection.classList.remove('hidden');
-            previewSection.classList.add('fade-in');
-            errorSection.classList.add('hidden');
-            classifyBtn.disabled = false;
-        }
-
-        function resetUI() {
-            stopCamera();
-            previewSection.classList.add('hidden');
-            resultSection.classList.add('hidden');
-            uploadSection.classList.remove('hidden');
-            uploadSection.classList.add('fade-in');
-            fileInput.value = '';
-            fileInputMobile.value = '';
-            imageBase64 = null;
-            imagePreview.src = '#';
-            errorSection.classList.add('hidden');
-        }
-
-        function showError(message) {
-            errorSection.classList.remove('hidden');
-            errorMessage.textContent = message;
-            showLoading(false);
-            classifyBtn.textContent = 'Classify Waste';
-        }
-
-        function showLoading(isLoading) {
-            if(isLoading) {
-                previewSection.classList.add('hidden');
-                errorSection.classList.add('hidden');
-                resultSection.classList.remove('hidden');
-                loader.classList.remove('hidden');
-                resultContent.classList.add('hidden');
-                classifyBtn.disabled = true;
-                classifyBtn.textContent = 'Classifying...';
-            } else {
-                loader.classList.add('hidden');
-                resultContent.classList.remove('hidden');
-                resultContent.classList.add('fade-in');
-                classifyBtn.disabled = false;
-            }
-        }
-
-        function displayResult(data) {
-            const wasteType = data.waste_type;
-            const confidence = data.confidence;
-            const reasoning = data.reasoning;
-            const disposalMethod = data.disposal_method;
-
-            const normalizedType = wasteType.toLowerCase().replace(/ waste/g, '').replace(/-/g, '').replace(/\s/g, '');
-            const config = wasteConfigs[normalizedType] || wasteConfigs['nonrecyclable']; // Fallback to non-recyclable
-
-            // 1. Set result text and styling
-            resultText.textContent = `${config.number}. ${config.label}`;
-            confidenceScore.textContent = `${(confidence * 100).toFixed(1)}%`;
-            reasoningText.textContent = reasoning;
-            disposalMethodText.textContent = disposalMethod;
-
-            // 2. Apply dynamic styling
-            resultCard.className = `p-6 rounded-xl shadow-lg ${config.cardClass}`;
-            resultIcon.className = `w-16 h-16 rounded-full flex items-center justify-center mr-4 shadow-lg ${config.iconClass}`;
-            resultText.className = `text-xl md:text-2xl font-semibold ${config.textClass}`;
-            resultIcon.innerHTML = config.iconSvg;
-
-            // 3. Save to History (if DB is ready)
-            if (db && auth.currentUser) {
-                saveHistoryItem(data);
-            }
-
-            // 4. Show results
-            showLoading(false);
-        }
-
-        // --- Classification Logic ---
-        async function classifyImage() {
-            if (!imageBase64) {
-                showError("No image selected. Please upload or capture an image.");
-                return;
-            }
-            if (!apiKey) {
-                 showError("API Key is missing. Please set the 'apiKey' variable in the code.");
+        /** Sets up a real-time listener for the user's classification history */
+        function setupHistoryListener() {
+            if (!db || !userId) {
+                console.warn("Firestore not initialized or userId not set. Cannot set up history listener.");
                 return;
             }
 
-            showLoading(true);
+            const historyCollectionPath = `/artifacts/${appId}/users/${userId}/classification_history`;
+            const q = query(
+                collection(db, historyCollectionPath),
+                // Note: sorting is done in-memory to avoid mandatory index creation errors
+            );
 
-            // Detailed System Instruction and Prompt based on the six categories
-            const systemPrompt = `
-                You are an expert waste classification model. Your task is to analyze the provided image, identify the item, and classify it into one of the following six categories. You MUST provide the response in a JSON object with the specified schema.
+            // Use onSnapshot for real-time updates
+            onSnapshot(q, (snapshot) => {
+                const historyList = [];
+                snapshot.forEach(doc => {
+                    // Add document data along with its ID
+                    historyList.push({ id: doc.id, ...doc.data() });
+                });
+                
+                // Sort the history in-memory by timestamp (descending)
+                historyList.sort((a, b) => {
+                    const timeA = a.timestamp?.seconds || 0;
+                    const timeB = b.timestamp?.seconds || 0;
+                    return timeB - timeA;
+                });
 
-                # Categories & Optimal Disposal Methods
-                1. Biodegradable Waste: (Food Waste, Garden Waste, Agricultural Waste)
-                   - Optimal Disposal Method: Composting or Anaerobic Digestion.
-                2. Recyclable Waste: (Paper, Cardboard, Glass, Metals, easily-recyclable Plastics like PET #1, HDPE #2)
-                   - Optimal Disposal Method: Mechanical Recycling at a municipal or certified facility.
-                3. Non-Recyclable Waste: (Contaminated materials, difficult-to-recycle materials like PVC #3, PS #6, complex multi-layer packaging)
-                   - Optimal Disposal Method: Landfilling or Incineration with energy recovery.
-                4. Hazardous Waste: (Paints, Solvents, Batteries, Pesticides, Corrosive/Flammable chemicals)
-                   - Optimal Disposal Method: Take to a designated Hazardous Waste Collection Center for stabilization, neutralization, or high-temperature incineration.
-                5. Biomedical Waste: (Syringes, bandages, expired medicines, pathological waste)
-                   - Optimal Disposal Method: Specialized treatment like Autoclaving (steam sterilization) or high-temperature Incineration by licensed disposal companies.
-                6. E-waste: (Computers, Phones, TVs, Cables)
-                   - Optimal Disposal Method: Handled by a certified E-waste Recycler for safe dismantling and recovery of valuable metals/toxic components.
+                renderHistory(historyList);
 
-                # Response Schema (MANDATORY)
-                {
-                    "waste_type": "[One of the six category names above, e.g., 'Recyclable Waste']",
-                    "disposal_method": "[The optimal disposal method corresponding to the chosen category, summarized from the list above]",
-                    "confidence": "[A float between 0.0 and 1.0 representing classification confidence]",
-                    "reasoning": "[A single, concise sentence explaining the classification based on the image content]"
-                }
-            `;
+            }, (error) => {
+                console.error("Firestore History Listener Error:", error);
+                document.getElementById('loading-history').textContent = 'Error loading history.';
+                showError("Could not load history in real-time. See console for details.");
+            });
+        }
+        
+        /** Renders the classification history list */
+        function renderHistory(history) {
+            const historyListEl = document.getElementById('history-list');
+            const loadingEl = document.getElementById('loading-history');
+            const emptyEl = document.getElementById('empty-history');
+            
+            historyListEl.innerHTML = '';
+            loadingEl.classList.add('hidden');
 
-            const userQuery = "Classify the waste item shown in the image and provide the optimal disposal method based on the provided categories. Only output the JSON object.";
+            if (history.length === 0) {
+                emptyEl.classList.remove('hidden');
+                return;
+            }
 
-            const payload = {
-                contents: [
-                    {
-                        role: "user",
-                        parts: [
-                            { text: userQuery },
-                            {
-                                inlineData: {
-                                    mimeType: "image/jpeg",
-                                    data: imageBase64
-                                }
-                            }
-                        ]
-                    }
-                ],
-                systemInstruction: {
-                    parts: [{ text: systemPrompt }]
-                },
-                generationConfig: {
-                    responseMimeType: "application/json",
-                    responseSchema: {
-                        type: "OBJECT",
-                        properties: {
-                            "waste_type": { "type": "STRING", "description": "The category of waste." },
-                            "disposal_method": { "type": "STRING", "description": "The optimal disposal method for this waste type." },
-                            "confidence": { "type": "NUMBER", "description": "Confidence score from 0.0 to 1.0." },
-                            "reasoning": { "type": "STRING", "description": "A brief explanation for the classification." }
-                        },
-                        "required": ["waste_type", "disposal_method", "confidence", "reasoning"]
-                    }
-                }
-            };
+            emptyEl.classList.add('hidden');
+
+            history.forEach(item => {
+                const date = item.timestamp ? new Date(item.timestamp.seconds * 1000).toLocaleString() : 'N/A';
+                
+                const badgeColor = getBadgeColor(item.wasteType);
+
+                const html = `
+                    <div class="bg-white p-4 rounded-xl card flex flex-col sm:flex-row justify-between items-start sm:items-center">
+                        <div class="mb-2 sm:mb-0">
+                            <p class="text-xs text-gray-500">${date}</p>
+                            <p class="text-sm text-gray-800 font-medium truncate max-w-xs">${item.query}</p>
+                        </div>
+                        <span class="waste-type-badge ${badgeColor}">${item.wasteType}</span>
+                    </div>
+                `;
+                historyListEl.insertAdjacentHTML('beforeend', html);
+            });
+        }
+        
+        /** Gets Tailwind color classes based on waste type */
+        function getBadgeColor(type) {
+             const lowerType = type.toLowerCase();
+             if (lowerType.includes('recyclable')) return 'bg-blue-100 text-blue-800';
+             if (lowerType.includes('compost')) return 'bg-green-100 text-green-800';
+             if (lowerType.includes('hazardous')) return 'bg-red-100 text-red-800';
+             if (lowerType.includes('landfill')) return 'bg-yellow-100 text-yellow-800';
+             return 'bg-gray-100 text-gray-800';
+        }
+
+        /** Saves the classification result to Firestore */
+        async function saveClassification(imageQuery, result) {
+            if (!db || !userId) {
+                console.error("Database or User ID not available for saving result.");
+                return;
+            }
 
             try {
-                const response = await fetchWithRetry(API_URL, {
+                const historyCollectionPath = `/artifacts/${appId}/users/${userId}/classification_history`;
+                await addDoc(collection(db, historyCollectionPath), {
+                    query: imageQuery,
+                    wasteType: result.classification,
+                    disposalInstructions: result.disposal_instructions,
+                    environmentalTip: result.environmental_tip,
+                    timestamp: serverTimestamp() // Use server timestamp for accuracy
+                });
+            } catch (error) {
+                console.error("Error saving classification to Firestore:", error);
+                showError(`Failed to save history: ${error.message}`);
+            }
+        }
+
+        /** Handles file selection and updates the UI */
+        function handleFile(file) {
+            if (!file || !file.type.startsWith('image/')) {
+                showError("Please select a valid image file (PNG, JPG, JPEG).");
+                return;
+            }
+
+            if (file.size > 4 * 1024 * 1024) { // 4MB limit
+                showError("The image file is too large (max 4MB).");
+                return;
+            }
+
+            selectedFile = file;
+            const previewContainer = document.getElementById('image-preview-container');
+            const previewImage = document.getElementById('image-preview');
+            const classifyButton = document.getElementById('classify-button');
+            const statusMessage = document.getElementById('status-message');
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                previewImage.src = e.target.result;
+                previewContainer.classList.remove('hidden');
+                classifyButton.disabled = false;
+                classifyButton.textContent = 'Classify Waste Item';
+                statusMessage.classList.add('hidden');
+                document.getElementById('result-card').classList.add('hidden'); // Hide result when new image is loaded
+            };
+            reader.readAsDataURL(file);
+        }
+
+        /** Resets the application state to allow for a new upload */
+        function resetApp() {
+            selectedFile = null;
+            document.getElementById('file-input').value = '';
+            document.getElementById('image-preview-container').classList.add('hidden');
+            document.getElementById('image-preview').src = '';
+            document.getElementById('classify-button').disabled = true;
+            document.getElementById('classify-button').textContent = 'Classify Waste Item';
+            document.getElementById('status-message').classList.add('hidden');
+            document.getElementById('result-card').classList.add('hidden');
+        }
+
+        /** Sets up all UI event listeners */
+        function setupEventListeners() {
+            const dropZone = document.getElementById('drop-zone');
+            const fileInput = document.getElementById('file-input');
+            const classifyButton = document.getElementById('classify-button');
+
+            // Click handling
+            dropZone.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', (e) => handleFile(e.target.files[0]));
+
+            // Drag and drop handling
+            dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropZone.classList.add('drag-over');
+            });
+            dropZone.addEventListener('dragleave', () => {
+                dropZone.classList.remove('drag-over');
+            });
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('drag-over');
+                if (e.dataTransfer.files.length) {
+                    handleFile(e.dataTransfer.files[0]);
+                }
+            });
+            
+            // Classification button click
+            classifyButton.addEventListener('click', classifyImage);
+        }
+        
+        /** Displays the LLM classification result in the UI */
+        function displayResult(result) {
+            const resultCard = document.getElementById('result-card');
+            const resultType = document.getElementById('result-type');
+            const resultDisposal = document.getElementById('result-disposal');
+            const resultTip = document.getElementById('result-tip');
+
+            if (result && result.classification) {
+                resultType.textContent = result.classification;
+                resultType.className = `waste-type-badge ${getBadgeColor(result.classification)}`;
+                resultDisposal.textContent = result.disposal_instructions || 'N/A';
+                resultTip.textContent = result.environmental_tip || 'N/A';
+                resultCard.classList.remove('hidden');
+                
+                // Save the successful classification to Firestore
+                saveClassification(selectedFile.name, result);
+                
+            } else {
+                showError("Classification failed: The API returned an invalid result format.");
+            }
+        }
+
+        /** Handles the main classification process */
+        async function classifyImage() {
+            if (!selectedFile) {
+                showError("Please select an image first.");
+                return;
+            }
+
+            // 1. Explicitly hide previous results before starting
+            document.getElementById('result-card').classList.add('hidden'); 
+
+            setLoading(true);
+            const statusMessage = document.getElementById('status-message');
+            statusMessage.textContent = 'Classifying... please wait.';
+            statusMessage.classList.remove('hidden');
+            statusMessage.classList.remove('text-red-500');
+            statusMessage.classList.add('text-indigo-600');
+
+            try {
+                // 2. Convert file to base64
+                const base64ImageData = await fileToBase64(selectedFile);
+                
+                // 3. Define the LLM instructions and prompt
+                const systemPrompt = "You are an expert waste classification model. Your task is to analyze the image and classify the waste item into one of four categories: Recyclable, Compostable, Landfill/General Waste, or Hazardous Waste. Provide a concise classification, disposal instructions, and a relevant environmental tip in the requested JSON format.";
+                
+                const userQuery = `Classify this image of waste. The item is named: "${selectedFile.name}".`;
+
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${LLM_API_KEY}`;
+                
+                const payload = {
+                    contents: [
+                        {
+                            role: "user",
+                            parts: [
+                                { text: userQuery },
+                                {
+                                    inlineData: {
+                                        mimeType: selectedFile.type,
+                                        data: base64ImageData
+                                    }
+                                }
+                            ]
+                        }
+                    ],
+                    systemInstruction: {
+                        parts: [{ text: systemPrompt }]
+                    },
+                    generationConfig: {
+                        responseMimeType: "application/json",
+                        responseSchema: {
+                            type: "OBJECT",
+                            properties: {
+                                "classification": {
+                                    "type": "STRING",
+                                    "description": "The classified waste type (e.g., Recyclable, Compostable, Landfill/General Waste, Hazardous Waste)."
+                                },
+                                "disposal_instructions": {
+                                    "type": "STRING",
+                                    "description": "Concise, actionable steps for proper disposal."
+                                },
+                                "environmental_tip": {
+                                    "type": "STRING",
+                                    "description": "A short, relevant fact or tip about reducing waste or sustainable practices."
+                                }
+                            },
+                            "propertyOrdering": ["classification", "disposal_instructions", "environmental_tip"]
+                        }
+                    }
+                };
+
+                // 4. Call the Gemini API with retry logic
+                const response = await fetchWithRetry(apiUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
-                const result = await response.json();
 
+                if (!response.ok) {
+                    throw new Error(`API Request failed with status: ${response.status} ${response.statusText}`);
+                }
+
+                const result = await response.json();
                 const candidate = result.candidates?.[0];
 
                 if (candidate && candidate.content?.parts?.[0]?.text) {
                     const text = candidate.content.parts[0].text;
                     const parsedJson = JSON.parse(text);
                     displayResult(parsedJson);
+                    statusMessage.textContent = 'Classification successful!';
+                    statusMessage.classList.remove('text-indigo-600');
+                    statusMessage.classList.add('text-green-600');
                 } else {
-                    throw new Error("Invalid response structure or empty result from the API. Check API Key and Rate Limits.");
+                    throw new Error("Invalid response structure or empty result from the API.");
                 }
 
             } catch (error) {
                 console.error("Classification Error:", error);
+                statusMessage.textContent = 'Classification failed.';
+                statusMessage.classList.remove('text-indigo-600');
+                statusMessage.classList.add('text-red-500');
                 showError(error.message || "An unexpected error occurred. Please try again.");
+            } finally {
+                setLoading(false);
             }
         }
-
+        
         // Helper function for exponential backoff
         async function fetchWithRetry(url, options, retries = 3, delay = 1000) {
             for (let i = 0; i < retries; i++) {
                 try {
                     const response = await fetch(url, options);
                     if (response.status === 429 && i < retries - 1) {
-                         throw new Error(`Rate limit exceeded, retrying in ${delay * Math.pow(2, i + 1) / 1000}s`);
-                    }
-                    if (!response.ok) {
-                         // Throw error for other HTTP errors (400s, 500s)
-                         const errorBody = await response.text();
-                         throw new Error(`API Request Failed with status ${response.status}: ${errorBody.substring(0, 100)}...`);
+                         // Exponentially increase delay
+                         await new Promise(res => setTimeout(res, delay * Math.pow(2, i)));
+                         continue; // Retry with the next iteration
                     }
                     return response;
                 } catch (error) {
                     if (i === retries - 1) throw error;
+                    // Exponentially increase delay before next retry
                     await new Promise(res => setTimeout(res, delay * Math.pow(2, i)));
                 }
             }
         }
-
-        // --- Initialization ---
+        
+        // --- Initialization ---\
         window.onload = initFirebaseAndAuth;
 
     </script>
