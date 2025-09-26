@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WasteWise - Mobile Waste Classifier</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .app-container {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .main-content {
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+        .drop-zone {
+            border: 2px dashed #d1d5db;
+            transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out;
+        }
+        .drop-zone.drag-over {
+            background-color: #e0f2fe;
+            border-color: #38bdf8;
+        }
+        .loader {
+            border: 4px solid #f3f4f6;
+            border-top: 4px solid #3b82f6;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-out forwards;
+        }
+        #camera-feed {
+            width: 100%;
+            height: auto;
+            border-radius: 0.5rem;
+        }
+        #camera-canvas {
+            display: none;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+
+    <div class="app-container">
+        <!-- App Header -->
+        <header class="bg-white shadow-md">
+            <nav class="container mx-auto px-4 py-3 flex items-center">
+                <div class="flex items-center space-x-2">
+                    <svg class="w-8 h-8 text-green-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M14.25 9.75L16.5 12l-2.25 2.25m-4.5 0L7.5 12l2.25-2.25M6 20.25h12A2.25 2.25 0 0020.25 18V6A2.25 2.25 0 0018 3.75H6A2.25 2.25 0 003.75 6v12A2.25 2.25 0 006 20.25z" />
+                    </svg>
+                    <h1 class="text-xl font-bold text-gray-800">WasteWise</h1>
+                </div>
+            </nav>
+        </header>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <div class="w-full max-w-lg mx-auto bg-white rounded-2xl shadow-lg p-6 md:p-8">
+                <!-- Image Upload Section -->
+                <div id="upload-section" class="fade-in">
+                    <header class="text-center mb-6">
+                        <h2 class="text-2xl md:text-3xl font-bold text-gray-800">Classify Waste</h2>
+                        <p class="text-gray-500 mt-2">Upload a photo or use your camera to start.</p>
+                    </header>
+                    <div id="drop-zone" class="drop-zone w-full p-8 text-center rounded-xl cursor-pointer bg-gray-50 hover:bg-gray-100 hidden md:block">
+                        <input type="file" id="file-input" class="hidden" accept="image/*">
+                        <div class="flex flex-col items-center">
+                             <svg class="w-12 h-12 text-gray-400 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l-3 3m3-3l3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" /></svg>
+                            <p class="text-gray-600 font-medium">Drag & drop an image here</p>
+                            <p class="text-gray-500 my-1">or</p>
+                            <p class="font-semibold text-blue-600">Click to Select File</p>
+                        </div>
+                    </div>
+                    <div class="mt-4 text-center md:mt-0">
+                        <button id="camera-btn" class="w-full bg-gray-800 text-white font-bold py-3 px-6 rounded-lg hover:bg-gray-900 transition-colors flex items-center justify-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                            Use Camera
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Camera View -->
+                <div id="camera-view" class="hidden">
+                    <video id="camera-feed" playsinline></video>
+                    <canvas id="camera-canvas" class="hidden"></canvas>
+                    <div class="mt-4 flex flex-col sm:flex-row gap-3 justify-center">
+                        <button id="capture-btn" class="w-full sm:w-auto bg-red-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-red-700 transition-colors">Take Photo</button>
+                        <button id="cancel-camera-btn" class="w-full sm:w-auto bg-gray-200 text-gray-700 font-medium py-3 px-6 rounded-lg hover:bg-gray-300">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- Image Preview Section -->
+                <div id="preview-section" class="hidden text-center">
+                    <img id="image-preview" src="#" alt="Image preview" class="max-w-full max-h-72 mx-auto rounded-lg shadow-md">
+                    <div class="mt-6 flex flex-col sm:flex-row gap-3 justify-center">
+                        <button id="classify-btn" class="w-full sm:w-auto bg-blue-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 disabled:bg-gray-400">
+                             Classify Waste
+                        </button>
+                        <button id="remove-btn" class="w-full sm:w-auto bg-gray-200 text-gray-700 font-medium py-3 px-6 rounded-lg hover:bg-gray-300 transition-colors">
+                            Change Image
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Result Section -->
+                <div id="result-section" class="hidden">
+                    <div id="loader" class="hidden mx-auto loader"></div>
+                    <div id="result-content" class="hidden">
+                        <h2 class="text-2xl font-bold text-center text-gray-800 mb-4">Classification Result</h2>
+                        <div id="result-card" class="p-6 rounded-xl">
+                            <div class="flex items-center justify-center">
+                                <div id="result-icon" class="w-16 h-16 rounded-full flex items-center justify-center mr-4"></div>
+                                <p id="result-text" class="text-2xl font-semibold"></p>
+                            </div>
+                            <div class="mt-4 text-center">
+                                <p class="text-gray-700 font-medium">Confidence: <span id="confidence-score" class="font-bold"></span></p>
+                                <p class="text-gray-600 mt-2 text-sm italic">"<span id="reasoning-text"></span>"</p>
+                            </div>
+                        </div>
+                        <div class="text-center mt-6">
+                             <button id="start-over-btn" class="w-full sm:w-auto bg-blue-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-blue-700 transition-colors">Classify Another Item</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Error Section -->
+                <div id="error-section" class="hidden mt-6 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg" role="alert">
+                    <strong class="font-bold">Error:</strong>
+                    <span class="block sm:inline" id="error-message"></span>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const uploadSection = document.getElementById('upload-section');
+        const cameraBtn = document.getElementById('camera-btn');
+        const cameraView = document.getElementById('camera-view');
+        const cameraFeed = document.getElementById('camera-feed');
+        const cameraCanvas = document.getElementById('camera-canvas');
+        const captureBtn = document.getElementById('capture-btn');
+        const cancelCameraBtn = document.getElementById('cancel-camera-btn');
+        const previewSection = document.getElementById('preview-section');
+        const imagePreview = document.getElementById('image-preview');
+        const classifyBtn = document.getElementById('classify-btn');
+        const removeBtn = document.getElementById('remove-btn');
+        const resultSection = document.getElementById('result-section');
+        const loader = document.getElementById('loader');
+        const resultContent = document.getElementById('result-content');
+        const resultCard = document.getElementById('result-card');
+        const resultIcon = document.getElementById('result-icon');
+        const resultText = document.getElementById('result-text');
+        const confidenceScore = document.getElementById('confidence-score');
+        const reasoningText = document.getElementById('reasoning-text');
+        const startOverBtn = document.getElementById('start-over-btn');
+        const errorSection = document.getElementById('error-section');
+        const errorMessage = document.getElementById('error-message');
+
+        let imageBase64 = null;
+        let cameraStream = null;
+
+        // --- Event Listeners ---
+        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('drag-over');
+        });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('drag-over');
+            const files = e.dataTransfer.files;
+            if (files.length) {
+                handleFile(files[0]);
+            }
+        });
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) {
+                handleFile(e.target.files[0]);
+            }
+        });
+        
+        cameraBtn.addEventListener('click', startCamera);
+        captureBtn.addEventListener('click', captureImage);
+        cancelCameraBtn.addEventListener('click', stopCamera);
+        
+        classifyBtn.addEventListener('click', classifyImage);
+        removeBtn.addEventListener('click', resetUI);
+        startOverBtn.addEventListener('click', resetUI);
+
+
+        // --- Camera Functions ---
+        async function startCamera() {
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                try {
+                    cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                    cameraFeed.srcObject = cameraStream;
+                    await cameraFeed.play();
+                    uploadSection.classList.add('hidden');
+                    cameraView.classList.remove('hidden');
+                    cameraView.classList.add('fade-in');
+                } catch (err) {
+                    console.error("Error accessing camera: ", err);
+                    showError("Could not access the camera. Please ensure you have given permission.");
+                }
+            } else {
+                showError("Your browser does not support camera access.");
+            }
+        }
+
+        function stopCamera() {
+            if (cameraStream) {
+                cameraStream.getTracks().forEach(track => track.stop());
+            }
+            cameraView.classList.add('hidden');
+            uploadSection.classList.remove('hidden');
+            uploadSection.classList.add('fade-in');
+        }
+        
+        function captureImage() {
+            cameraCanvas.width = cameraFeed.videoWidth;
+            cameraCanvas.height = cameraFeed.videoHeight;
+            cameraCanvas.getContext('2d').drawImage(cameraFeed, 0, 0, cameraCanvas.width, cameraCanvas.height);
+            const dataUrl = cameraCanvas.toDataURL('image/jpeg', 0.9);
+            imagePreview.src = dataUrl;
+            imageBase64 = dataUrl.split(',')[1];
+            stopCamera();
+            showPreview();
+        }
+
+        // --- Image Handling ---
+        function resizeImage(file, maxWidth, maxHeight, quality) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        let width = img.width;
+                        let height = img.height;
+
+                        if (width > height) {
+                            if (width > maxWidth) {
+                                height *= maxWidth / width;
+                                width = maxWidth;
+                            }
+                        } else {
+                            if (height > maxHeight) {
+                                width *= maxHeight / height;
+                                height = maxHeight;
+                            }
+                        }
+
+                        const canvas = document.createElement('canvas');
+                        canvas.width = width;
+                        canvas.height = height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, width, height);
+                        resolve(canvas.toDataURL('image/jpeg', quality));
+                    };
+                    img.onerror = reject;
+                    img.src = e.target.result;
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+
+        async function handleFile(file) {
+            if (!file.type.startsWith('image/')) {
+                showError("Please upload a valid image file.");
+                return;
+            }
+            try {
+                const resizedDataUrl = await resizeImage(file, 512, 512, 0.9);
+                imagePreview.src = resizedDataUrl;
+                imageBase64 = resizedDataUrl.split(',')[1];
+                showPreview();
+            } catch (error) {
+                console.error("Error resizing image:", error);
+                showError("Could not process the selected image file.");
+            }
+        }
+
+        // --- UI Functions ---
+        function showPreview() {
+            uploadSection.classList.add('hidden');
+            resultSection.classList.add('hidden');
+            cameraView.classList.add('hidden');
+            previewSection.classList.remove('hidden');
+            previewSection.classList.add('fade-in');
+            errorSection.classList.add('hidden');
+            classifyBtn.disabled = false;
+        }
+
+        function resetUI() {
+            stopCamera();
+            previewSection.classList.add('hidden');
+            resultSection.classList.add('hidden');
+            uploadSection.classList.remove('hidden');
+            uploadSection.classList.add('fade-in');
+            fileInput.value = '';
+            imageBase64 = null;
+            imagePreview.src = '#';
+        }
+        
+        function showLoading(isLoading) {
+            if(isLoading) {
+                previewSection.classList.add('hidden');
+                errorSection.classList.add('hidden');
+                resultSection.classList.remove('hidden');
+                loader.classList.remove('hidden');
+                resultContent.classList.add('hidden');
+                classifyBtn.disabled = true;
+                classifyBtn.textContent = 'Classifying...';
+            } else {
+                loader.classList.add('hidden');
+                resultContent.classList.remove('hidden');
+                resultContent.classList.add('fade-in');
+                classifyBtn.disabled = false;
+                classifyBtn.textContent = 'Classify Waste';
+            }
+        }
+        
+        function displayResult(data) {
+            const wasteType = data.waste_type.toLowerCase();
+            const confidence = data.confidence;
+            const reasoning = data.reasoning;
+
+            resultText.textContent = wasteType.charAt(0).toUpperCase() + wasteType.slice(1) + ' Waste';
+            confidenceScore.textContent = `${(confidence * 100).toFixed(1)}%`;
+            reasoningText.textContent = reasoning;
+            
+            if (wasteType === 'wet') {
+                resultCard.className = 'p-6 rounded-xl bg-green-100 border border-green-300';
+                resultIcon.className = 'w-16 h-16 rounded-full flex items-center justify-center mr-4 bg-green-500';
+                resultIcon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>`;
+                resultText.className = "text-2xl font-semibold text-green-800";
+            } else { // Dry
+                resultCard.className = 'p-6 rounded-xl bg-blue-100 border border-blue-300';
+                resultIcon.className = 'w-16 h-16 rounded-full flex items-center justify-center mr-4 bg-blue-500';
+                resultIcon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3h2m-4 3V5m-4 3V4a2 2 0 012-2h4a2 2 0 012 2v1" /></svg>`;
+                resultText.className = "text-2xl font-semibold text-blue-800";
+            }
+            
+            showLoading(false);
+        }
+
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorSection.classList.remove('hidden');
+            errorSection.classList.add('fade-in');
+            resultSection.classList.add('hidden');
+            previewSection.classList.add('hidden');
+            cameraView.classList.add('hidden');
+            loader.classList.add('hidden');
+            classifyBtn.disabled = false;
+            classifyBtn.textContent = 'Classify Waste';
+        }
+
+        // --- API Call ---
+        async function classifyImage() {
+            if (!imageBase64) {
+                showError("Please provide an image first.");
+                return;
+            }
+            showLoading(true);
+
+            const apiKey = ""; 
+            const model = "gemini-2.5-flash-preview-05-20";
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+            const prompt = `Analyze the image and classify the waste as 'wet' or 'dry'. Wet waste is typically organic, like food scraps and yard trimmings. Dry waste is typically non-organic and non-biodegradable, like paper, plastic, glass, and metal. Respond ONLY with a valid JSON object containing 'waste_type' ('wet' or 'dry'), 'confidence' (a number between 0 and 1 representing your certainty), and 'reasoning' (a brief, one-sentence explanation for your classification).`;
+
+            const payload = {
+                contents: [{
+                    parts: [
+                        { text: prompt },
+                        { inline_data: { mime_type: "image/jpeg", data: imageBase64 } }
+                    ]
+                }],
+                generationConfig: {
+                    responseMimeType: "application/json",
+                },
+            };
+            
+            try {
+                const response = await fetchWithRetry(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error ? errorData.error.message : 'API request failed');
+                }
+
+                const result = await response.json();
+                const candidate = result.candidates?.[0];
+
+                if (candidate && candidate.content?.parts?.[0]?.text) {
+                    const text = candidate.content.parts[0].text;
+                    const parsedJson = JSON.parse(text);
+                    displayResult(parsedJson);
+                } else {
+                    throw new Error("Invalid response structure from the API.");
+                }
+
+            } catch (error) {
+                console.error("Classification Error:", error);
+                showError(error.message || "An unexpected error occurred. Please try again.");
+            }
+        }
+        
+        async function fetchWithRetry(url, options, retries = 3, delay = 1000) {
+            for (let i = 0; i < retries; i++) {
+                try {
+                    return await fetch(url, options);
+                } catch (error) {
+                    if (i === retries - 1) throw error;
+                    await new Promise(res => setTimeout(res, delay * Math.pow(2, i)));
+                }
+            }
+        }
+    </script>
+</body>
+</html>
