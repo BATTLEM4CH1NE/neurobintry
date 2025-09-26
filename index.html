@@ -135,16 +135,6 @@
                     </div>
                 </div>
 
-                <!-- History Section -->
-                <div id="history-container" class="w-full mt-6">
-                    <h2 class="text-xl font-semibold mb-4 text-gray-800">3. Classification History (User ID: <span id="user-id-display" class="font-mono text-sm bg-gray-200 px-2 py-0.5 rounded">...</span>)</h2>
-                    <div id="history-list" class="space-y-3">
-                        <!-- History items will be inserted here -->
-                        <p id="loading-history" class="text-center text-gray-500">Loading history...</p>
-                    </div>
-                    <p id="empty-history" class="text-center text-gray-500 mt-4 hidden">No classification history found yet!</p>
-                </div>
-
             </div>
         </div>
         
@@ -164,28 +154,19 @@
     </div>
 
     <script type="module">
-        // --- Firebase Imports (Updated to v12.3.0) ---
+        // --- Firebase Imports (Only keeping necessary Auth and App) ---
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-app.js";
         import { 
             getAuth, 
             signInAnonymously, 
-            signInWithCustomToken, 
-            onAuthStateChanged 
+            signInWithCustomToken 
         } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-auth.js";
-        import { 
-            getFirestore, 
-            addDoc, 
-            onSnapshot, 
-            collection, 
-            query, 
-            serverTimestamp 
-        } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-firestore.js"; 
         import { setLogLevel } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-app.js";
 
         // Set Firebase debug log level
         setLogLevel('Debug');
         
-        // --- HARDCODED FALLBACK CONFIGURATION (Using user's provided, updated configuration) ---
+        // --- HARDCODED FALLBACK CONFIGURATION ---
         const USER_FIREBASE_CONFIG_FALLBACK = {
             apiKey: "AIzaSyAsyIFdxENdIbDCvvF1RJH7v_ea1mmBcsw",
             authDomain: "neurobin-60a06.firebaseapp.com",
@@ -198,13 +179,10 @@
         };
 
         // --- Global Variables ---
-        let app, db, auth, userId;
+        let app, auth;
         let selectedFile = null;
 
-        // Global variables provided by the environment
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-
-        // Robust Configuration Loading
+        // Configuration Loading
         let firebaseConfig = null;
         if (typeof __firebase_config !== 'undefined' && __firebase_config) {
             try {
@@ -256,132 +234,6 @@
             });
         }
         
-        // --- Core Application Logic ---
-        
-        /** Initializes Firebase and authenticates the user */
-        async function initFirebaseAndAuth() {
-            // CRITICAL CHECK: Ensure minimum required fields for Auth are present
-            if (!firebaseConfig || !firebaseConfig.apiKey || !firebaseConfig.authDomain || !firebaseConfig.projectId) {
-                console.error("Critical Firebase Configuration Missing:", firebaseConfig);
-                showError("Firebase setup failed: The configuration object is incomplete. Please ensure API Key, Auth Domain, and Project ID are included.");
-                return;
-            }
-
-            try {
-                // Initialize the app instance
-                app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app); 
-                
-                // Sign in with the provided token or anonymously
-                const authPromise = initialAuthToken 
-                    ? signInWithCustomToken(auth, initialAuthToken)
-                    : signInAnonymously(auth);
-
-                await authPromise;
-
-
-                // Listen for auth state changes to set the user ID and start history listener
-                onAuthStateChanged(auth, (user) => {
-                    if (user) {
-                        userId = user.uid;
-                        document.getElementById('user-id-display').textContent = userId;
-                        // Once authenticated, start listening to history
-                        setupHistoryListener();
-                    } else {
-                        userId = 'unauthenticated';
-                        document.getElementById('user-id-display').textContent = userId;
-                        // Only show error if no token was provided, otherwise it's just anonymous sign-in
-                        if (initialAuthToken) {
-                             showError("Failed to authenticate user with custom token. History will not be saved correctly.");
-                        } else {
-                            console.log("Successfully signed in anonymously.");
-                        }
-                    }
-                    setupEventListeners();
-                });
-            } catch (error) {
-                console.error("Firebase Initialization Error:", error);
-                // Specifically targeting the auth error message
-                if (error.code === 'auth/configuration-not-found') {
-                    showError("Firebase setup failed: The Authentication configuration is missing required security fields. This is usually resolved by ensuring the full config is correct and Anonymous Auth is enabled.");
-                } else {
-                    showError(`Firebase setup failed: ${error.message}.`);
-                }
-            }
-        }
-
-        /** Sets up a real-time listener for the user's classification history */
-        function setupHistoryListener() {
-            if (!db || !userId || userId === 'unauthenticated') {
-                console.warn("Firestore not initialized or userId not set. Cannot set up history listener.");
-                return;
-            }
-
-            const historyCollectionPath = `/artifacts/${appId}/users/${userId}/classification_history`;
-            const q = query(
-                collection(db, historyCollectionPath),
-                // Note: sorting is done in-memory to avoid mandatory index creation errors
-            );
-
-            // Use onSnapshot for real-time updates
-            onSnapshot(q, (snapshot) => {
-                const historyList = [];
-                snapshot.forEach(doc => {
-                    // Add document data along with its ID
-                    historyList.push({ id: doc.id, ...doc.data() });
-                });
-                
-                // Sort the history in-memory by timestamp (descending)
-                historyList.sort((a, b) => {
-                    const timeA = a.timestamp?.seconds || 0;
-                    const timeB = b.timestamp?.seconds || 0;
-                    return timeB - timeA;
-                });
-
-                renderHistory(historyList);
-
-            }, (error) => {
-                console.error("Firestore History Listener Error:", error);
-                document.getElementById('loading-history').textContent = 'Error loading history.';
-                showError("Could not load history in real-time. See console for details.");
-            });
-        }
-        
-        /** Renders the classification history list */
-        function renderHistory(history) {
-            const historyListEl = document.getElementById('history-list');
-            const loadingEl = document.getElementById('loading-history');
-            const emptyEl = document.getElementById('empty-history');
-            
-            historyListEl.innerHTML = '';
-            loadingEl.classList.add('hidden');
-
-            if (history.length === 0) {
-                emptyEl.classList.remove('hidden');
-                return;
-            }
-
-            emptyEl.classList.add('hidden');
-
-            history.forEach(item => {
-                const date = item.timestamp ? new Date(item.timestamp.seconds * 1000).toLocaleString() : 'N/A';
-                
-                const badgeColor = getBadgeColor(item.wasteType);
-
-                const html = `
-                    <div class="bg-white p-4 rounded-xl card flex flex-col sm:flex-row justify-between items-start sm:items-center">
-                        <div class="mb-2 sm:mb-0">
-                            <p class="text-xs text-gray-500">${date}</p>
-                            <p class="text-sm text-gray-800 font-medium truncate max-w-xs">${item.query}</p>
-                        </div>
-                        <span class="waste-type-badge ${badgeColor}">${item.wasteType}</span>
-                    </div>
-                `;
-                historyListEl.insertAdjacentHTML('beforeend', html);
-            });
-        }
-        
         /** Gets Tailwind color classes based on waste type */
         function getBadgeColor(type) {
              const lowerType = type.toLowerCase();
@@ -392,26 +244,36 @@
              return 'bg-gray-100 text-gray-800';
         }
 
-        /** Saves the classification result to Firestore */
-        async function saveClassification(imageQuery, result) {
-            // Only try to save if Firebase is properly initialized and we have a user ID
-            if (!db || !userId || userId === 'unauthenticated') {
-                console.warn("Database or User ID not available for saving result. Skipping history save.");
+        
+        // --- Core Application Logic ---
+        
+        /** Initializes Firebase and authenticates the user */
+        async function initFirebaseAndAuth() {
+            // CRITICAL CHECK: Ensure minimum required fields for Auth are present
+            if (!firebaseConfig || !firebaseConfig.apiKey || !firebaseConfig.authDomain || !firebaseConfig.projectId) {
+                console.error("Critical Firebase Configuration Missing:", firebaseConfig);
+                showError("Firebase setup failed: The configuration object is incomplete.");
                 return;
             }
 
             try {
-                const historyCollectionPath = `/artifacts/${appId}/users/${userId}/classification_history`;
-                await addDoc(collection(db, historyCollectionPath), {
-                    query: imageQuery,
-                    wasteType: result.classification,
-                    disposalInstructions: result.disposal_instructions,
-                    environmentalTip: result.environmental_tip,
-                    timestamp: serverTimestamp() // Use server timestamp for accuracy
-                });
+                // Initialize the app instance
+                app = initializeApp(firebaseConfig);
+                auth = getAuth(app); 
+                
+                // Sign in with the provided token or anonymously
+                const authPromise = initialAuthToken 
+                    ? signInWithCustomToken(auth, initialAuthToken)
+                    : signInAnonymously(auth);
+
+                await authPromise;
+                console.log("Firebase initialized and user authenticated.");
+                setupEventListeners();
+
             } catch (error) {
-                console.error("Error saving classification to Firestore:", error);
-                showError(`Failed to save history: ${error.message}`);
+                console.error("Firebase Initialization Error:", error);
+                showError(`Firebase setup failed: ${error.message}. The app will proceed, but authentication may be required later if history were enabled.`);
+                setupEventListeners(); // Still allow the app to run classification even if auth fails
             }
         }
 
@@ -501,8 +363,7 @@
                 resultTip.textContent = result.environmental_tip || 'N/A';
                 resultCard.classList.remove('hidden');
                 
-                // Save the successful classification to Firestore
-                saveClassification(selectedFile.name, result);
+                // ** History removal: No longer saving to Firestore **
                 
             } else {
                 showError("Classification failed: The API returned an invalid result format.");
