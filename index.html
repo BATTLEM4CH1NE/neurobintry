@@ -16,12 +16,12 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            padding-bottom: 2rem;
+            padding-bottom: 2rem; /* space for history */
         }
         .main-content {
             flex-grow: 1;
             display: flex;
-            align-items: flex-start;
+            align-items: flex-start; /* Align content to the top */
             justify-content: center;
             padding: 1rem;
             width: 100%;
@@ -70,16 +70,6 @@
             transform: translateX(0);
             transition: opacity 300ms, transform 300ms;
         }
-        .firebase-error {
-            background-color: #fef2f2;
-            border: 1px solid #fecaca;
-            color: #dc2626;
-            padding: 0.5rem;
-            border-radius: 0.375rem;
-            font-size: 0.75rem;
-            text-align: center;
-            margin-bottom: 1rem;
-        }
     </style>
 </head>
 <body class="bg-green-50">
@@ -89,9 +79,11 @@
         <header class="bg-white shadow-md w-full">
             <nav class="container mx-auto px-4 py-3 flex items-center">
                 <div class="flex items-center space-x-2">
+                    <!-- Updated Icon - still green -->
                     <svg class="w-8 h-8 text-green-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M14.25 9.75L16.5 12l-2.25 2.25m-4.5 0L7.5 12l2.25-2.25M6 20.25h12A2.25 2.25 0 0020.25 18V6A2.25 2.25 0 0018 3.75H6A2.25 2.25 0 003.75 6v12A2.25 2.25 0 006 20.25z" />
                     </svg>
+                    <!-- Name changed to NeuroBin -->
                     <h1 class="text-xl font-bold text-gray-800">NeuroBin</h1>
                 </div>
             </nav>
@@ -99,11 +91,6 @@
 
         <!-- Main Content Area -->
         <main class="main-content flex-col">
-            <!-- Firebase Status Banner -->
-            <div id="firebase-status" class="w-full max-w-lg mx-auto mb-4 firebase-error hidden">
-                <span id="firebase-status-text"></span>
-            </div>
-
             <!-- Classification Card -->
             <div class="w-full max-w-lg mx-auto bg-white rounded-2xl shadow-lg p-6 md:p-8">
                 <!-- User ID Banner -->
@@ -132,6 +119,7 @@
                             <div class="flex items-center"><span class="font-bold text-gray-800 w-5">6.</span> E-waste</div>
                         </div>
                     </div>
+                    <!-- End Category Legend Section -->
                     
                     <div id="drop-zone" class="drop-zone w-full p-8 text-center rounded-xl cursor-pointer bg-gray-50 hover:bg-gray-100 hidden md:block">
                         <input type="file" id="file-input" class="hidden" accept="image/*">
@@ -185,10 +173,12 @@
                             </div>
                             <div class="mt-4 text-center">
                                 <p class="text-gray-700 font-medium">Confidence: <span id="confidence-score" class="font-bold"></span></p>
+                                <!-- Optimal Disposal Method -->
                                 <div id="disposal-info" class="mt-4 p-3 bg-white rounded-lg border border-dashed border-gray-300">
                                     <p class="text-sm font-semibold text-gray-700 mb-1">Optimal Disposal Method:</p>
                                     <p id="disposal-method-text" class="text-base font-bold text-green-600"></p>
                                 </div>
+                                <!-- END Optimal Disposal Method -->
                                 <p class="text-gray-600 mt-4 text-sm italic">"<span id="reasoning-text"></span>"</p>
                             </div>
                         </div>
@@ -231,31 +221,25 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, addDoc, onSnapshot, collection, query, orderBy, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        // *** REALTIME DATABASE IMPORTS ***
+        import { getDatabase, ref, push, onValue } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
 
         // Global variables for Firebase access
-        let db;
+        let db; // This will now hold the Realtime Database instance
         let auth;
         let userId = null;
-        let firebaseInitialized = false;
         
-        // Default Firebase configuration (replace with your actual config)
-        const defaultFirebaseConfig = {
-            // Add your Firebase config here or it will be loaded from environment
-            // Example structure:
-            // apiKey: "your-api-key",
-            // authDomain: "your-project.firebaseapp.com",
-            // projectId: "your-project-id",
-            // storageBucket: "your-project.appspot.com",
-            // messagingSenderId: "123456789",
-            // appId: "your-app-id"
+        // Function to sanitize path segments for Realtime Database (removes invalid characters)
+        const sanitizePathSegment = (str) => {
+            // Realtime DB forbids ., #, $, [, ]
+            return str.replace(/[.#$\[\]]/g, '_'); 
         };
-
-        // Try to get config from environment or use default
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'neurobin-app';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? 
-            (typeof __firebase_config === 'string' ? JSON.parse(__firebase_config) : __firebase_config) : 
-            defaultFirebaseConfig;
+        
+        // Sanitize the appId to ensure it is compatible with Realtime Database path rules
+        const rawAppId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const appId = sanitizePathSegment(rawAppId); 
+        
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
 
         // --- DOM Elements ---
         const dropZone = document.getElementById('drop-zone');
@@ -293,13 +277,13 @@
         const historyEmpty = document.getElementById('history-empty');
         const userIdBanner = document.getElementById('user-id-banner');
         const userIdText = document.getElementById('user-id-text');
-        const firebaseStatus = document.getElementById('firebase-status');
-        const firebaseStatusText = document.getElementById('firebase-status-text');
+
 
         let imageBase64 = null;
         let cameraStream = null;
 
-        // --- Waste Configuration ---
+        // --- Waste Configuration (for consistent display) ---
+        // Using Emojis for better visual representation in history
         const wasteConfigs = {
             'biodegradable': { number: 1, label: 'Biodegradable Waste', icon: '🍃', cardClass: 'bg-green-100 border-green-300', textClass: 'text-green-700', historyColor: 'text-green-600' },
             'recyclable': { number: 2, label: 'Recyclable Waste', icon: '♻️', cardClass: 'bg-blue-100 border-blue-300', textClass: 'text-blue-700', historyColor: 'text-blue-600' },
@@ -309,57 +293,34 @@
             'ewaste': { number: 6, label: 'E-waste', icon: '💻', cardClass: 'bg-purple-100 border-purple-300', textClass: 'text-purple-700', historyColor: 'text-purple-600' },
         };
         
-        // --- Firebase Functions ---
-
-        function updateFirebaseStatus(message, isError = true) {
-            if (message) {
-                firebaseStatusText.textContent = message;
-                firebaseStatus.classList.remove('hidden');
-                if (isError) {
-                    firebaseStatus.classList.add('firebase-error');
-                }
-            } else {
-                firebaseStatus.classList.add('hidden');
-            }
-        }
+        // --- Realtime Database Functions (Replaces Firestore) ---
 
         async function initFirebaseAndAuth() {
-            // Check if Firebase config is valid
-            if (!firebaseConfig || !firebaseConfig.apiKey || !firebaseConfig.projectId) {
-                const errorMsg = "Firebase configuration is incomplete. History feature will be disabled.";
-                console.error(errorMsg);
-                updateFirebaseStatus(errorMsg);
-                historyLoading.textContent = "History unavailable: Firebase not configured";
+            if (!firebaseConfig || !Object.keys(firebaseConfig).length) {
+                console.error("Firebase config is missing. History feature will be disabled.");
+                historyLoading.textContent = "History is unavailable: Firebase not configured by the environment.";
                 return;
             }
             
             try {
-                setLogLevel('error'); // Reduce console noise
-                
+                // Initialize app and Realtime Database
                 const app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
+                db = getDatabase(app); 
                 auth = getAuth(app);
                 
-                // Set up auth state listener
-                onAuthStateChanged(auth, (user) => {
+                const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+                
+                onAuthStateChanged(auth, async (user) => {
                     if (user) {
                         userId = user.uid;
-                        userIdText.textContent = userId.substring(0, 8) + '...'; // Show shortened ID
+                        userIdText.textContent = userId;
                         userIdBanner.classList.remove('hidden');
-                        updateFirebaseStatus("Firebase connected successfully", false);
-                        firebaseInitialized = true;
                         loadHistory();
-                    } else {
-                        // Try to sign in anonymously
-                        signInAnonymously(auth).catch(error => {
-                            console.error("Anonymous sign-in failed:", error);
-                            updateFirebaseStatus("Authentication failed: " + error.message);
-                        });
+                    } else if (!user && !initialAuthToken) {
+                        await signInAnonymously(auth);
                     }
                 });
 
-                // Try initial auth token if provided
-                const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
                 if (initialAuthToken) {
                     await signInWithCustomToken(auth, initialAuthToken);
                 } else if (!auth.currentUser) {
@@ -367,78 +328,70 @@
                 }
 
             } catch (error) {
-                console.error("Firebase Initialization Error:", error);
-                updateFirebaseStatus("Firebase initialization failed: " + error.message);
-                historyLoading.textContent = "Error initializing history";
+                console.error("Firebase Initialization/Auth Error:", error);
+                historyLoading.textContent = "Error initializing history. Check console.";
             }
         }
         
-        function getHistoryCollectionRef() {
-            if (!firebaseInitialized || !db || !userId) {
+        // Function to get the Realtime DB path reference
+        function getHistoryPathRef() {
+            if (!db || !userId) {
+                console.error("Realtime DB or User ID is not available.");
                 return null;
             }
-            return collection(db, `artifacts/${appId}/users/${userId}/waste_history`);
+            // Path structure for private data in Realtime DB: /artifacts/{appId}/users/{userId}/waste_history
+            // appId is now sanitized
+            const historyPath = `artifacts/${appId}/users/${userId}/waste_history`;
+            return ref(db, historyPath);
         }
 
         async function saveHistoryItem(data) {
-            if (!firebaseInitialized) {
-                console.log("Firebase not initialized, skipping history save");
-                return;
-            }
-            
-            const historyRef = getHistoryCollectionRef();
-            if (!historyRef) {
-                console.log("No history collection reference available");
-                return;
-            }
+            const historyRef = getHistoryPathRef();
+            if (!historyRef) return;
 
             try {
-                await addDoc(historyRef, {
+                // Use push() to generate a unique key for the new history item
+                await push(historyRef, {
                     timestamp: Date.now(),
                     wasteType: data.waste_type,
                     disposalMethod: data.disposal_method,
                     reasoning: data.reasoning,
-                    confidence: data.confidence
                 });
-                console.log("History item saved successfully.");
+                console.log("History item saved successfully to Realtime DB.");
             } catch (error) {
-                console.error("Error saving history item:", error);
-                updateFirebaseStatus("Failed to save history: " + error.message);
+                console.error("Error saving history item to Realtime DB:", error);
             }
         }
 
         function loadHistory() {
-            if (!firebaseInitialized) {
-                historyLoading.textContent = "History unavailable: Firebase not configured";
-                return;
-            }
+            const historyRef = getHistoryPathRef();
+            if (!historyRef) return;
             
-            const historyRef = getHistoryCollectionRef();
-            if (!historyRef) {
-                historyLoading.textContent = "History unavailable: Authentication required";
-                return;
-            }
-            
-            const q = query(historyRef);
-
-            onSnapshot(q, (snapshot) => {
+            // Listen for data changes
+            onValue(historyRef, (snapshot) => {
                 historyLoading.classList.add('hidden');
                 const items = [];
-                snapshot.forEach(doc => {
-                    items.push({ id: doc.id, ...doc.data() });
-                });
+                const data = snapshot.val(); // Get all data under the reference
                 
+                if (data) {
+                    // Realtime DB returns an object of objects, convert to array
+                    Object.keys(data).forEach(key => {
+                        items.push({ id: key, ...data[key] });
+                    });
+                }
+                
+                // Sort the items by timestamp in descending order (newest first)
                 items.sort((a, b) => b.timestamp - a.timestamp);
+
                 renderHistory(items);
             }, (error) => {
-                console.error("Error loading history:", error);
-                historyLoading.textContent = "Error loading history data";
-                updateFirebaseStatus("History load error: " + error.message);
+                console.error("Error loading history from Realtime DB:", error);
+                historyLoading.textContent = "Error loading history data from Realtime DB.";
             });
         }
         
         function renderHistory(items) {
-            historyList.innerHTML = '';
+            historyList.innerHTML = ''; // Clear previous list
             if (items.length === 0) {
                 historyEmpty.classList.remove('hidden');
                 return;
@@ -452,7 +405,7 @@
                 const time = new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
                 const listItem = document.createElement('li');
-                listItem.className = `p-3 rounded-xl border-l-4 border-gray-200 ${config.cardClass} history-item-enter`;
+                listItem.className = `p-3 rounded-xl border-l-4 border-gray-200 ${config.cardClass}`;
                 listItem.innerHTML = `
                     <div class="flex justify-between items-start">
                         <div class="flex items-center">
@@ -460,7 +413,6 @@
                             <div>
                                 <p class="font-semibold ${config.historyColor}">${config.label} <span class="text-xs text-gray-500 font-normal ml-1">#${config.number}</span></p>
                                 <p class="text-xs text-gray-400 mt-0.5">${date} at ${time}</p>
-                                <p class="text-xs text-gray-500 mt-0.5">Confidence: ${(item.confidence * 100).toFixed(1)}%</p>
                             </div>
                         </div>
                     </div>
@@ -471,9 +423,11 @@
                 `;
                 historyList.appendChild(listItem);
                 
+                // Simple transition effect for new items
                 setTimeout(() => {
-                    listItem.classList.add('history-item-enter-active');
+                    listItem.classList.remove('history-item-enter');
                 }, 10);
+                listItem.classList.add('history-item-enter', 'history-item-enter-active');
             });
         }
         
@@ -511,6 +465,7 @@
             historyContent.style.display = isHidden ? 'block' : 'none';
             historyToggle.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
         });
+
 
         // --- Camera Functions ---
         async function startCamera() {
@@ -649,16 +604,19 @@
             const wasteType = data.waste_type;
             const confidence = data.confidence;
             const reasoning = data.reasoning;
-            const disposalMethod = data.disposal_method;
+            const disposalMethod = data.disposal_method; 
 
+            // Normalize wasteType to match config keys
             const normalizedType = wasteType.toLowerCase().replace(/ waste/g, '').replace(/-/g, '').replace(/\s/g, '');
-            const config = wasteConfigs[normalizedType] || wasteConfigs['nonrecyclable'];
+            const config = wasteConfigs[normalizedType] || wasteConfigs['nonrecyclable']; 
 
+            // Update result display
             resultText.textContent = `${config.number}. ${config.label}`;
             confidenceScore.textContent = `${(confidence * 100).toFixed(1)}%`;
             reasoningText.textContent = reasoning;
             disposalMethodText.textContent = disposalMethod;
             
+            // Apply dynamic styling
             resultCard.className = `p-6 rounded-xl border ${config.cardClass}`;
             resultIcon.className = `w-16 h-16 rounded-full flex items-center justify-center mr-4 bg-white shadow-md`;
             resultIcon.innerHTML = `<span class="text-3xl">${config.icon}</span>`;
@@ -666,7 +624,7 @@
             
             showLoading(false);
             
-            // Save to history if Firebase is available
+            // Save successful classification to history using Realtime DB
             saveHistoryItem(data);
         }
 
@@ -690,7 +648,9 @@
             }
             showLoading(true);
 
-            const apiKey = "AIzaSyAD4OtSfd38C_wzG6bbJ_z7GOi3SE6jw8A";
+            // API key provided by the user
+            const apiKey = "AIzaSyAD4OtSfd38C_wzG6bbJ_z7GOi3SE6jw8A"; 
+            
             const model = "gemini-2.5-flash-preview-05-20";
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
@@ -761,6 +721,7 @@ Respond ONLY with a valid JSON object containing 'waste_type', 'confidence', 're
             }
         }
         
+        // Helper function for exponential backoff
         async function fetchWithRetry(url, options, retries = 3, delay = 1000) {
             for (let i = 0; i < retries; i++) {
                 try {
