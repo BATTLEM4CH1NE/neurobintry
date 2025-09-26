@@ -433,7 +433,11 @@
             // Use the determined config, or default to Non-Recyclable if the model returns an unrecognized value
             const config = wasteConfigs[normalizedType] || wasteConfigs['nonrecyclable']; 
 
-            resultText.textContent = config.label;
+            // ************************************************
+            // MODIFICATION: Add the category number to the text
+            // ************************************************
+            resultText.textContent = `${config.number}. ${config.label}`;
+            
             confidenceScore.textContent = `${(confidence * 100).toFixed(1)}%`;
             reasoningText.textContent = reasoning;
             disposalMethodText.textContent = disposalMethod;
