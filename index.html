@@ -136,12 +136,12 @@
                             </div>
                             <div class="mt-4 text-center">
                                 <p class="text-gray-700 font-medium">Confidence: <span id="confidence-score" class="font-bold"></span></p>
-                                <!-- NEW: Optimal Disposal Method -->
+                                <!-- Optimal Disposal Method -->
                                 <div id="disposal-info" class="mt-4 p-3 bg-white rounded-lg border border-dashed border-gray-300">
                                     <p class="text-sm font-semibold text-gray-700 mb-1">Optimal Disposal Method:</p>
                                     <p id="disposal-method-text" class="text-base font-bold text-green-600"></p>
                                 </div>
-                                <!-- END NEW ELEMENT -->
+                                <!-- END Optimal Disposal Method -->
                                 <p class="text-gray-600 mt-4 text-sm italic">"<span id="reasoning-text"></span>"</p>
                             </div>
                         </div>
@@ -185,7 +185,6 @@
         const startOverBtn = document.getElementById('start-over-btn');
         const errorSection = document.getElementById('error-section');
         const errorMessage = document.getElementById('error-message');
-        // NEW: Reference to the disposal method display element
         const disposalMethodText = document.getElementById('disposal-method-text'); 
 
         let imageBase64 = null;
@@ -362,7 +361,7 @@
             const wasteType = data.waste_type;
             const confidence = data.confidence;
             const reasoning = data.reasoning;
-            const disposalMethod = data.disposal_method; // NEW: Get disposal method
+            const disposalMethod = data.disposal_method; 
 
             // Normalize wasteType to match config keys (remove ' Waste' and spaces/hyphens, lower case)
             const normalizedType = wasteType.toLowerCase().replace(/ waste/g, '').replace(/-/g, '').replace(/\s/g, '');
@@ -431,7 +430,7 @@
             resultText.textContent = config.label;
             confidenceScore.textContent = `${(confidence * 100).toFixed(1)}%`;
             reasoningText.textContent = reasoning;
-            disposalMethodText.textContent = disposalMethod; // SET NEW DISPOSAL TEXT
+            disposalMethodText.textContent = disposalMethod;
             
             // Apply dynamic styling based on classification config
             resultCard.className = `p-6 rounded-xl ${config.cardClass}`;
@@ -462,13 +461,13 @@
             }
             showLoading(true);
 
-            // API Key provided by the user
-            const apiKey = ""; // API key is left blank for the environment to inject it
+            // API Key provided by the user (UPDATED HERE)
+            const apiKey = "AIzaSyAD4OtSfd38C_wzG6bbJ_z7GOi3SE6jw8A"; 
             
             const model = "gemini-2.5-flash-preview-05-20";
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
-            // UPDATED PROMPT: Now includes disposal method guidance
+            // Disposal method guidance for the model
             const disposalGuidance = `
 Based on the classification, determine the single most 'Optimal Disposal Method'. Use the following guidelines strictly:
 1. Biodegradable Waste: Use 'Composting or Anaerobic Digestion (for biogas/fertilizer)'.
@@ -499,7 +498,6 @@ Respond ONLY with a valid JSON object containing 'waste_type', 'confidence', 're
                             waste_type: { type: "STRING", description: "One of 'Biodegradable Waste', 'Recyclable Waste', 'Non-Recyclable Waste', 'Hazardous Waste', 'Biomedical Waste', or 'E-waste'." },
                             confidence: { type: "NUMBER", description: "A floating-point number between 0 and 1 representing classification certainty." },
                             reasoning: { type: "STRING", description: "A brief, one-sentence explanation for the classification." },
-                            // NEW SCHEMA PROPERTY
                             disposal_method: { type: "STRING", description: "The single optimal disposal method based on the provided guidance." } 
                         },
                         required: ["waste_type", "confidence", "reasoning", "disposal_method"],
@@ -520,7 +518,7 @@ Respond ONLY with a valid JSON object containing 'waste_type', 'confidence', 're
                     let apiMessage = errorData.error?.message || 'API request failed with an unknown status.';
                     
                     if (apiMessage.includes('unregistered callers') || apiMessage.includes('API key not valid')) {
-                        apiMessage = "Authentication Failed: Please ensure your API key is correctly entered and has the necessary permissions.";
+                        apiMessage = "Authentication Failed: The provided API key may be invalid or restricted.";
                     }
 
                     throw new Error(apiMessage);
